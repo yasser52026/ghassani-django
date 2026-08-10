@@ -26,3 +26,10 @@ class AffectationGarde(models.Model):
 
     class Meta:
         unique_together = ('garde', 'agent')
+
+
+class EtatRotation(models.Model):
+    """Mémorise où on en est dans le cycle de l'équipe pour un poste donné,
+    pour que le mois suivant reprenne la rotation là où elle s'est arrêtée."""
+    poste = models.OneToOneField('referentiels.Poste', on_delete=models.CASCADE, related_name='etat_rotation')
+    index_suivant = models.IntegerField(default=0)

@@ -23,4 +23,17 @@ class Decompte(models.Model):
 class JournalAudit(models.Model):
     utilisateur_email = models.CharField(max_length=120, blank=True)
     action = models.CharField(max_length=255)
+    cible = models.CharField(max_length=120, blank=True)
+    details = models.TextField(blank=True)
     horodatage = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-horodatage']
+
+
+def journaliser(utilisateur, action, cible='', details=''):
+    """Enregistre une entrée dans le journal d'audit (qui, quoi, quand)."""
+    email = getattr(utilisateur, 'email', '') or ''
+    JournalAudit.objects.create(
+        utilisateur_email=email, action=action, cible=cible, details=details,
+    )

@@ -38,7 +38,15 @@ async function apiJSON(chemin, options = {}) {
     if (!reponse) return null;
     if (!reponse.ok) {
         const erreur = await reponse.json().catch(() => ({}));
-        throw new Error(erreur.detail || `Erreur ${reponse.status}`);
+        let message = erreur.detail;
+        if (!message) {
+            const morceaux = Object.entries(erreur).map(([champ, valeurs]) => {
+                const texte = Array.isArray(valeurs) ? valeurs.join(' ') : valeurs;
+                return champ === 'non_field_errors' ? texte : `${champ} : ${texte}`;
+            });
+            message = morceaux.length ? morceaux.join(' — ') : `Erreur ${reponse.status}`;
+        }
+        throw new Error(message);
     }
     return reponse.status === 204 ? null : reponse.json();
 }

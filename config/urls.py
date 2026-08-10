@@ -28,4 +28,6 @@ urlpatterns = [
     path('service-detail.html', TemplateView.as_view(template_name='service-detail.html')),
     path('inscription.html', TemplateView.as_view(template_name='inscription.html')),
     path('profil.html', TemplateView.as_view(template_name='profil.html')),
+    path('journal-audit.html', TemplateView.as_view(template_name='journal-audit.html')),
+    path('tableau-bord.html', TemplateView.as_view(template_name='tableau-bord.html')),
 ]

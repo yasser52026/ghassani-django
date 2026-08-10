@@ -1,0 +1,115 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Tableau de bord — Indicateurs</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Indicateurs par service</h2><p>Heures totales, moyenne par agent, gardes de nuit, comparaison entre mois</p></div>
+        </div>
+
+        <div class="card p-3" style="max-width:520px;margin-bottom:1.5rem;">
+            <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:1rem;align-items:end;">
+                <div><label class="form-label">Service</label><select id="serviceId" class="form-select"></select></div>
+                <div><label class="form-label">Année</label><input type="number" id="annee" class="form-control" value="2026"></div>
+                <div><button class="btn btn-primary" onclick="chargerIndicateurs()">Afficher</button></div>
+            </div>
+        </div>
+
+        <div id="zoneVide" class="card p-4" style="text-align:center;color:var(--gris-texte);">
+            Choisissez un service et une année pour afficher les indicateurs.
+        </div>
+
+        <div id="zoneIndicateurs" style="display:none;">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+                <div class="card p-3"><div style="color:var(--gris-texte);font-size:0.8rem;">Heures totales (année)</div><div style="font-size:1.6rem;font-weight:700;" id="totalAnnee">—</div></div>
+                <div class="card p-3"><div style="color:var(--gris-texte);font-size:0.8rem;">Moyenne / agent / mois</div><div style="font-size:1.6rem;font-weight:700;" id="moyenneAnnee">—</div></div>
+                <div class="card p-3"><div style="color:var(--gris-texte);font-size:0.8rem;">Heures de nuit (année)</div><div style="font-size:1.6rem;font-weight:700;" id="nuitAnnee">—</div></div>
+                <div class="card p-3"><div style="color:var(--gris-texte);font-size:0.8rem;">Week-end / férié (année)</div><div style="font-size:1.6rem;font-weight:700;" id="weekendAnnee">—</div></div>
+            </div>
+
+            <div class="card p-3">
+                <h5 class="mb-3">Comparaison entre mois — heures totales</h5>
+                <div id="graphique" style="display:flex;align-items:flex-end;gap:0.75rem;height:220px;padding:0 0.5rem;"></div>
+            </div>
+
+            <div class="card p-3" style="margin-top:1rem;">
+                <table>
+                    <thead><tr><th>Mois</th><th>Heures totales</th><th>Agents</th><th>Moyenne / agent</th><th>Heures de nuit</th><th>Week-end / férié</th></tr></thead>
+                    <tbody id="corpsTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+const MOIS_FR = ["", "Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+
+async function chargerIndicateurs() {
+    const serviceId = document.getElementById('serviceId').value;
+    const annee = document.getElementById('annee').value;
+    if (!serviceId) return;
+
+    const data = await apiJSON(`/decomptes/tableau-bord/${serviceId}/${annee}/`);
+    document.getElementById('zoneVide').style.display = 'none';
+    document.getElementById('zoneIndicateurs').style.display = 'block';
+
+    if (!data.mois.length) {
+        document.getElementById('graphique').innerHTML = '<div style="color:var(--gris-texte);">Aucun décompte calculé pour cette année.</div>';
+        document.getElementById('corpsTable').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gris-texte);">Aucune donnée.</td></tr>';
+        document.getElementById('totalAnnee').textContent = '0 h';
+        document.getElementById('moyenneAnnee').textContent = '0 h';
+        document.getElementById('nuitAnnee').textContent = '0 h';
+        document.getElementById('weekendAnnee').textContent = '0 h';
+        return;
+    }
+
+    const totalAnnee = data.mois.reduce((s, m) => s + m.total_heures, 0);
+    const nuitAnnee = data.mois.reduce((s, m) => s + m.heures_nuit, 0);
+    const weekendAnnee = data.mois.reduce((s, m) => s + m.heures_weekend_ferie, 0);
+    const moyennes = data.mois.filter(m => m.nb_agents > 0).map(m => m.moyenne_agent);
+    const moyenneAnnee = moyennes.length ? (moyennes.reduce((s, v) => s + v, 0) / moyennes.length) : 0;
+
+    document.getElementById('totalAnnee').textContent = `${totalAnnee.toFixed(1)} h`;
+    document.getElementById('moyenneAnnee').textContent = `${moyenneAnnee.toFixed(1)} h`;
+    document.getElementById('nuitAnnee').textContent = `${nuitAnnee.toFixed(1)} h`;
+    document.getElementById('weekendAnnee').textContent = `${weekendAnnee.toFixed(1)} h`;
+
+    const maxHeures = Math.max(...data.mois.map(m => m.total_heures), 1);
+    document.getElementById('graphique').innerHTML = data.mois.map(m => `
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1;height:100%;justify-content:flex-end;">
+            <div style="font-size:0.75rem;margin-bottom:4px;">${m.total_heures}</div>
+            <div style="width:100%;background:var(--bleu-marine,#1F4E78);border-radius:4px 4px 0 0;height:${(m.total_heures / maxHeures) * 100}%;min-height:2px;"></div>
+            <div style="font-size:0.75rem;color:var(--gris-texte);margin-top:6px;">${MOIS_FR[m.mois]}</div>
+        </div>
+    `).join('');
+
+    document.getElementById('corpsTable').innerHTML = data.mois.map(m => `
+        <tr>
+            <td>${MOIS_FR[m.mois]}</td>
+            <td>${m.total_heures} h</td>
+            <td>${m.nb_agents}</td>
+            <td>${m.moyenne_agent} h</td>
+            <td>${m.heures_nuit} h</td>
+            <td>${m.heures_weekend_ferie} h</td>
+        </tr>
+    `).join('');
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('tableau-bord');
+    if (!utilisateur) return;
+    const services = await apiJSON('/services/');
+    document.getElementById('serviceId').innerHTML = `<option value="">— Choisir —</option>` + services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+})();
+</script>
+</body>
+</html>

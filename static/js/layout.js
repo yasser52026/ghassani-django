@@ -20,7 +20,7 @@ async function chargerLayout(pageActive) {
     const peutVoirDemandes = ['administrateur', 'gestionnaire'].includes(utilisateur.role);
 
     const liens = [
-        { href: '/index.html', texte: 'Tableau de bord', cle: 'accueil' },
+        { href: '/index.html', texte: 'Mes décomptes', cle: 'accueil' },
         { href: '/services.html', texte: 'Services', cle: 'services' },
         { href: '/calendrier.html', texte: 'Calendrier', cle: 'calendrier' },
         { href: '/plannings.html', texte: 'Plannings', cle: 'plannings' },
@@ -31,6 +31,12 @@ async function chargerLayout(pageActive) {
         liens.push({ href: '/agents.html', texte: 'Agents', cle: 'agents' });
     }
     if (peutVoirDemandes) liens.push({ href: '/demandes.html', texte: 'Demandes', cle: 'demandes' });
+    iif (['administrateur', 'directeur', 'gestionnaire', 'chef_service'].includes(utilisateur.role)) {
+        liens.push({ href: '/tableau-bord.html', texte: 'Tableau de bord', cle: 'tableau-bord' });
+    }
+    if (['administrateur', 'directeur'].includes(utilisateur.role)) {
+        liens.push({ href: '/journal-audit.html', texte: "Journal d'audit", cle: 'journal-audit' });
+    }
     liens.push({ href: '/profil.html', texte: 'Mon profil', cle: 'profil' });
 
     const navHtml = liens.map(l => `<a href="${l.href}" class="${l.cle === pageActive ? 'actif' : ''}">${l.texte}</a>`).join('');

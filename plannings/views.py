@@ -9,8 +9,9 @@ from comptes.models import ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_CHEF_SERVICE
 from comptes.permissions import role_requis, acces_service_autorise
 from referentiels.models import Service, Poste
 from calendrier.moteur import categorie_du_jour
+from decomptes.models import journaliser
 from .models import Planning, Garde, AffectationGarde
-from .services import enregistrer_decomptes, controler_planning
+from .services import enregistrer_decomptes, controler_planning, generer_rotation
 
 MOIS_FR = ["", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
@@ -83,16 +84,45 @@ class EnregistrerGrilleView(APIView):
             return Response(status=403)
 
         affectations_par_garde = request.data.get('gardes', [])
+        nb_ajouts, nb_retraits = 0, 0
         for entree in affectations_par_garde:
             garde_id = entree['garde_id']
             agent_ids = set(entree.get('agent_ids', []))
             actuels = set(AffectationGarde.objects.filter(garde_id=garde_id).values_list('agent_id', flat=True))
 
-            AffectationGarde.objects.filter(garde_id=garde_id, agent_id__in=(actuels - agent_ids)).delete()
-            for agent_id in (agent_ids - actuels):
+            a_retirer = actuels - agent_ids
+            a_ajouter = agent_ids - actuels
+            AffectationGarde.objects.filter(garde_id=garde_id, agent_id__in=a_retirer).delete()
+            for agent_id in a_ajouter:
                 AffectationGarde.objects.create(garde_id=garde_id, agent_id=agent_id)
+            nb_ajouts += len(a_ajouter)
+            nb_retraits += len(a_retirer)
+
+        if nb_ajouts or nb_retraits:
+            journaliser(
+                request.user, "Modification du planning",
+                cible=f"Planning:{planning.id}",
+                details=f"{nb_ajouts} affectation(s) ajoutée(s), {nb_retraits} retirée(s).",
+            )
 
         return Response({'detail': 'Planning enregistré.'})
+
+
+class GenererRotationView(APIView):
+    permission_classes = [role_requis(ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_CHEF_SERVICE)]
+
+    def post(self, request, planning_id):
+        planning = Planning.objects.get(id=planning_id)
+        if not acces_service_autorise(request.user, planning.service_id):
+            return Response(status=403)
+
+        resultat = generer_rotation(planning)
+        journaliser(
+            request.user, "Génération de la rotation",
+            cible=f"Planning:{planning.id}",
+            details=f"{resultat['nb_affectations']} affectation(s) proposée(s).",
+        )
+        return Response(resultat)
 
 
 class CalculerView(APIView):

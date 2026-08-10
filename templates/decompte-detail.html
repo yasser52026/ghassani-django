@@ -59,6 +59,7 @@ async function chargerDecompte() {
             </tr>
         `).join('');
     }
+}
 
 async function telechargerExport(type) {
     const reponse = await api(`/decomptes/${serviceId}/${annee}/${mois}/export/${type}/`);
@@ -69,7 +70,6 @@ async function telechargerExport(type) {
     a.download = type === 'excel' ? `decompte_${annee}_${mois}.xlsx` : `bordereau_${annee}_${mois}.pdf`;
     a.click();
     window.URL.revokeObjectURL(url);
-}
 }
 
 async function validerDecompte() {

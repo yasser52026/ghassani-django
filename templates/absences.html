@@ -26,7 +26,8 @@
                     <div class="mb-3"><label class="form-label">Agent</label><select id="agentId" class="form-select" required></select></div>
                     <div class="mb-3"><label class="form-label">Du</label><input type="date" id="dateDebut" class="form-control" required></div>
                     <div class="mb-3"><label class="form-label">Au</label><input type="date" id="dateFin" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">Motif</label><input type="text" id="motif" class="form-control"></div>
+                   <div class="mb-3"><label class="form-label">Motif</label><input type="text" id="motif" class="form-control"></div>
+                    <div id="erreurAbsence" class="mb-2" style="color:#c0392b;font-size:0.85rem;"></div>
                     <button class="btn btn-primary" style="width:100%;">Enregistrer</button>
                 </form>
             </div>
@@ -60,17 +61,23 @@ async function supprimerAbsence(id) {
 
     document.getElementById('formAbsence').addEventListener('submit', async (e) => {
         e.preventDefault();
-        await apiJSON('/absences/', {
-            method: 'POST',
-            body: JSON.stringify({
-                agent: document.getElementById('agentId').value,
-                date_debut: document.getElementById('dateDebut').value,
-                date_fin: document.getElementById('dateFin').value,
-                motif: document.getElementById('motif').value,
-            }),
-        });
-        e.target.reset();
-        chargerAbsences();
+        const zoneErreur = document.getElementById('erreurAbsence');
+        zoneErreur.textContent = '';
+        try {
+            await apiJSON('/absences/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    agent: document.getElementById('agentId').value,
+                    date_debut: document.getElementById('dateDebut').value,
+                    date_fin: document.getElementById('dateFin').value,
+                    motif: document.getElementById('motif').value,
+                }),
+            });
+            e.target.reset();
+            chargerAbsences();
+        } catch (err) {
+            zoneErreur.textContent = err.message;
+        }
     });
 
     chargerAbsences();

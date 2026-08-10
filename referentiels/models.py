@@ -19,3 +19,17 @@ class Poste(models.Model):
 
     def __str__(self):
         return f"{self.service.nom} - {self.type_vacation}"
+
+
+class Equipe(models.Model):
+    """Ordre de rotation d'une équipe, défini une fois par service."""
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='equipe')
+    agent = models.ForeignKey('comptes.Utilisateur', on_delete=models.CASCADE)
+    ordre = models.IntegerField()
+
+    class Meta:
+        unique_together = ('service', 'agent')
+        ordering = ['ordre']
+
+    def __str__(self):
+        return f"{self.service.nom} #{self.ordre} - {self.agent.nom_complet}"

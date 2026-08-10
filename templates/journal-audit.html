@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Journal d'audit — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Journal d'audit</h2><p>Traçabilité des saisies et modifications (qui, quoi, quand)</p></div>
+        </div>
+        <div class="card p-3">
+            <table>
+                <thead><tr><th>Date / heure</th><th>Utilisateur</th><th>Action</th><th>Cible</th><th>Détails</th></tr></thead>
+                <tbody id="corpsJournal"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+async function chargerJournal() {
+    const entrees = await apiJSON('/decomptes/journal-audit/');
+    document.getElementById('corpsJournal').innerHTML = entrees.length ? entrees.map(e => `
+        <tr>
+            <td>${new Date(e.horodatage).toLocaleString('fr-FR')}</td>
+            <td>${e.utilisateur_email || '—'}</td>
+            <td>${e.action}</td>
+            <td>${e.cible || '—'}</td>
+            <td>${e.details || '—'}</td>
+        </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Aucune entrée pour le moment.</td></tr>';
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('journal-audit');
+    if (!utilisateur) return;
+    chargerJournal();
+})();
+</script>
+</body>
+</html>

@@ -5,41 +5,151 @@
     <meta charset="UTF-8">
     <title>Tableau de bord — CHR de Fès</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .kpi-card { background: #fff; border-radius: 0.5rem; padding: 1.25rem; border-left: 4px solid #1F4E78; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .kpi-label { font-size: 0.75rem; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; margin-bottom: 0.5rem; font-weight: 600; }
+        .kpi-value { font-size: 2rem; font-weight: 700; color: #1f2937; }
+        .card { margin-bottom: 1.5rem; background: #fff; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 1.25rem; }
+        .card h5 { margin-bottom: 1rem; font-size: 1.1rem; color: #1f2937; }
+        .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.875rem; border: 1px solid #1F4E78; color: #1F4E78; background: transparent; border-radius: 0.375rem; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-sm:hover { background: #1F4E78; color: #fff; }
+    </style>
 </head>
 <body>
 <div class="app-layout">
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2>Tableau de bord</h2><p>Vue d'ensemble des heures supplémentaires</p></div>
+            <div><h2>Tableau de bord</h2><p>Vue d'ensemble des heures supplémentaires — <span id="periode"></span></p></div>
         </div>
-        <div class="card p-4">
-            <h5 style="margin-bottom:1rem;">Mes décomptes récents</h5>
-            <table>
-                <thead><tr><th>Mois</th><th>Total</th><th>Statut</th></tr></thead>
-                <tbody id="corpsDecomptes"><tr><td colspan="3" style="text-align:center;color:var(--gris-texte);">Chargement...</td></tr></tbody>
-            </table>
+
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-label">Agents actifs</div><div class="kpi-value" id="kpiAgents">--</div></div>
+            <div class="kpi-card"><div class="kpi-label">Services</div><div class="kpi-value" id="kpiServices">--</div></div>
+            <div class="kpi-card"><div class="kpi-label">Heures supp. ce mois-ci</div><div class="kpi-value" id="kpiHeures">--</div></div>
+            <div class="kpi-card"><div class="kpi-label">Dont heures de nuit</div><div class="kpi-value" id="kpiNuit">--</div></div>
+        </div>
+
+        <div class="card">
+            <h5>Plannings récents</h5>
+            <table><thead><tr><th>Service</th><th>Mois</th><th>Statut</th><th></th></tr></thead>
+            <tbody id="corpsPlannings"><tr><td colspan="4" style="text-align:center;color:#6b7280;">Chargement...</td></tr></tbody></table>
+        </div>
+
+        <div class="card">
+            <h5>Décomptes récents</h5>
+            <table><thead><tr><th>Service</th><th>Mois</th><th>Total</th><th>Statut</th></tr></thead>
+            <tbody id="corpsDecomptes"><tr><td colspan="4" style="text-align:center;color:#6b7280;">Chargement...</td></tr></tbody></table>
         </div>
     </main>
 </div>
+
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
+const now = new Date();
+const annee = now.getFullYear();
+const mois  = now.getMonth() + 1;
+document.getElementById('periode').textContent = `${mois}/${annee}`;
+
 (async () => {
     const utilisateur = await chargerLayout('accueil');
     if (!utilisateur) return;
 
+    // ── 1. SERVICES (we know this works) ──
+    let services = [];
     try {
-        const decomptes = await apiJSON('/decomptes/mes-decomptes/');
-        const corps = document.getElementById('corpsDecomptes');
-        if (!decomptes.length) {
-            corps.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--gris-texte);">Aucun décompte pour le moment.</td></tr>';
-        } else {
-            corps.innerHTML = decomptes.map(d => `
-                <tr><td>${d.mois}/${d.annee}</td><td>${d.total_heures} h</td><td><span class="badge">${d.statut_validation}</span></td></tr>
-            `).join('');
-        }
-    } catch (e) { console.error(e); }
+        const res = await apiJSON('/services/');
+        services = res.results || res || [];
+        document.getElementById('kpiServices').textContent = services.length;
+    } catch (e) { console.error('Services:', e); }
+
+    // ── 2. AGENTS ──
+    // Try common agent endpoints. If yours is different, change the URL below.
+    const agentUrls = ['/agents/', '/comptes/agents/', '/api/comptes/agents/'];
+    for (const url of agentUrls) {
+        try {
+            const res = await apiJSON(url);
+            const agents = res.results || res || [];
+            document.getElementById('kpiAgents').textContent = agents.length;
+            break; // stop trying once one works
+        } catch (e) { /* try next */ }
+    }
+
+    // ── 3. HOURS & PLANNINGS: iterate services (uses ONLY existing endpoints) ──
+    let totalHeures = 0, totalNuit = 0;
+    const planningsList = [];
+    const decomptesList = [];
+
+    for (const svc of services) {
+        const sid = svc.id;
+        
+        // Try to fetch decompte for this service/month
+        try {
+            const dec = await apiJSON(`/decomptes/${sid}/${annee}/${mois}/`);
+            const liste = dec.decomptes || dec.results || [];
+            liste.forEach(d => {
+                totalHeures += parseFloat(d.total_heures || 0);
+                totalNuit   += parseFloat(d.heures_nuit || 0);
+            });
+            if (liste.length) {
+                decomptesList.push({
+                    service: svc.nom,
+                    mois, annee,
+                    total: liste.reduce((s, d) => s + parseFloat(d.total_heures || 0), 0).toFixed(1),
+                    statut: liste[0]?.statut_validation || 'préparé'
+                });
+            }
+        } catch (e) { /* no decompte for this service yet */ }
+
+        // Try to fetch planning for this service/month
+        try {
+            const plan = await apiJSON(`/plannings/${sid}/${annee}/${mois}/`);
+            planningsList.push({
+                service: svc.nom,
+                service_id: sid,
+                mois, annee,
+                statut: plan.statut || 'brouillon'
+            });
+        } catch (e) { /* no planning for this service yet */ }
+    }
+
+    // Update KPIs
+    document.getElementById('kpiHeures').textContent = totalHeures.toFixed(1) + ' h';
+    document.getElementById('kpiNuit').textContent   = totalNuit.toFixed(1)   + ' h';
+
+    // ── 4. RENDER PLANNINGS ──
+    const corpsPlannings = document.getElementById('corpsPlannings');
+    if (!planningsList.length) {
+        corpsPlannings.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">Aucun planning pour le moment.</td></tr>';
+    } else {
+        corpsPlannings.innerHTML = planningsList.slice(0, 5).map(p => `
+            <tr>
+                <td>${p.service}</td>
+                <td>${p.mois}/${p.annee}</td>
+                <td><span class="badge">${p.statut}</span></td>
+                <td style="text-align:right;">
+                    <a class="btn-sm" href="planning-grille.html?service_id=${p.service_id}&annee=${p.annee}&mois=${p.mois}">Ouvrir</a>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // ── 5. RENDER DÉCOMPTES ──
+    const corpsDecomptes = document.getElementById('corpsDecomptes');
+    if (!decomptesList.length) {
+        corpsDecomptes.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">Aucun décompte pour le moment.</td></tr>';
+    } else {
+        corpsDecomptes.innerHTML = decomptesList.slice(0, 5).map(d => `
+            <tr>
+                <td>${d.service}</td>
+                <td>${d.mois}/${d.annee}</td>
+                <td>${d.total} h</td>
+                <td><span class="badge">${d.statut}</span></td>
+            </tr>
+        `).join('');
+    }
 })();
 </script>
 </body>

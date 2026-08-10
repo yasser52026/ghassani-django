@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import Decompte
+from .models import Decompte, JournalAudit
+
+
+class JournalAuditSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JournalAudit
+        fields = ['id', 'utilisateur_email', 'action', 'cible', 'details', 'horodatage']
 
 
 class DecompteSerializer(serializers.ModelSerializer):

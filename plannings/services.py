@@ -5,7 +5,8 @@ from calendrier.models import CATEGORIE_OUVRABLE, CATEGORIE_VENDREDI, CATEGORIE_
 from calendrier.moteur import categorie_du_jour, heures_bareme
 from absences.models import Absence
 from decomptes.models import Decompte
-from .models import AffectationGarde, Garde
+from referentiels.models import Equipe, Poste
+from .models import AffectationGarde, Garde, EtatRotation
 
 
 def agent_est_absent(agent_id, une_date):
@@ -77,3 +78,46 @@ def controler_planning(planning):
             if conflits.exists():
                 alertes.append({'type': 'conflit_inter_services', 'gravite': 'avertissement', 'message': f"Agent affecté ailleurs le {garde.date}."})
     return alertes
+
+
+@transaction.atomic
+def generer_rotation(planning):
+    """Pré-remplit les gardes vides du planning à partir de l'ordre de rotation
+    de l'équipe du service. Ne touche jamais une garde déjà affectée
+    (les corrections manuelles restent intactes)."""
+    equipe = list(
+        Equipe.objects.filter(service=planning.service).order_by('ordre').values_list('agent_id', flat=True)
+    )
+    if not equipe:
+        return {'nb_affectations': 0, 'message': "Aucune équipe n'est configurée pour ce service."}
+
+    nb_total = 0
+    for poste in Poste.objects.filter(service=planning.service):
+        etat, _ = EtatRotation.objects.get_or_create(poste=poste)
+        cursor = etat.index_suivant
+
+        gardes = planning.gardes.filter(poste=poste).order_by('date').prefetch_related('affectations')
+        for garde in gardes:
+            if garde.affectations.exists():
+                continue
+
+            effectif = poste.effectif_attendu
+            retenus = []
+            essais = 0
+            i = cursor
+            while len(retenus) < effectif and essais < len(equipe) * 2:
+                agent_id = equipe[i % len(equipe)]
+                if agent_id not in retenus and not agent_est_absent(agent_id, garde.date):
+                    retenus.append(agent_id)
+                i += 1
+                essais += 1
+
+            for agent_id in retenus:
+                AffectationGarde.objects.create(garde=garde, agent_id=agent_id)
+            nb_total += len(retenus)
+            cursor = (cursor + effectif) % len(equipe)
+
+        etat.index_suivant = cursor
+        etat.save()
+
+    return {'nb_affectations': nb_total, 'message': None}

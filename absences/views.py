@@ -2,6 +2,7 @@ from rest_framework import viewsets
 
 from comptes.models import ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_DIRECTEUR, ROLE_CHEF_SERVICE
 from comptes.permissions import role_requis
+from decomptes.models import journaliser
 from .models import Absence
 from .serializers import AbsenceSerializer
 
@@ -20,3 +21,27 @@ class AbsenceViewSet(viewsets.ModelViewSet):
         if utilisateur.role == ROLE_CHEF_SERVICE:
             return base.filter(agent__service_id=utilisateur.service_id)
         return base
+
+    def perform_create(self, serializer):
+        absence = serializer.save()
+        journaliser(
+            self.request.user, "Création d'une absence",
+            cible=f"Absence:{absence.id}",
+            details=f"Agent {absence.agent_id}, du {absence.date_debut} au {absence.date_fin}.",
+        )
+
+    def perform_update(self, serializer):
+        absence = serializer.save()
+        journaliser(
+            self.request.user, "Modification d'une absence",
+            cible=f"Absence:{absence.id}",
+            details=f"Agent {absence.agent_id}, du {absence.date_debut} au {absence.date_fin}.",
+        )
+
+    def perform_destroy(self, instance):
+        journaliser(
+            self.request.user, "Suppression d'une absence",
+            cible=f"Absence:{instance.id}",
+            details=f"Agent {instance.agent_id}, du {instance.date_debut} au {instance.date_fin}.",
+        )
+        instance.delete()

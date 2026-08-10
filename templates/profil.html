@@ -34,10 +34,7 @@
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
-const LIBELLES_ROLES = {
-    administrateur: 'Administrateur', gestionnaire: 'Gestionnaire RH / Paie',
-    chef_service: 'Chef de service', directeur: 'Directeur', consultation: 'Consultation seule',
-};
+
 
 function majDisponibilite(disponible) {
     document.getElementById('badgeDisponibilite').textContent = disponible ? 'Disponible' : 'Indisponible';

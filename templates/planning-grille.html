@@ -13,8 +13,11 @@
         <div class="page-header">
             <div><h2 id="titreService">...</h2><p id="sousTitre"></p></div>
             <div class="page-header-actions">
-                <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
-                <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
+                <div class="page-header-actions">
+    <button class="btn btn-outline-light" onclick="genererRotation()">Générer la rotation</button>
+    <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
+    <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
+</div>
             </div>
         </div>
         <div id="zoneAlertes"></div>
@@ -96,13 +99,13 @@ async function chargerGrille() {
     data.agents_du_service.forEach(a => agentsMap[a.nom_complet] = a.id);
     document.getElementById('listeAgents').innerHTML = data.agents_du_service.map(a => `<option value="${a.nom_complet}">`).join('');
 
-    if (data.alertes.length) {
-        document.getElementById('zoneAlertes').innerHTML = `
-            <div class="alert alert-warning">
-                <strong>${data.alertes.length} alerte(s) :</strong>
-                <ul style="margin:0;">${data.alertes.slice(0, 8).map(a => `<li>${a.message}</li>`).join('')}</ul>
-            </div>`;
-    }
+   
+        document.getElementById('zoneAlertes').innerHTML = data.alertes.length ? `
+        <div class="alert alert-warning">
+            <strong>${data.alertes.length} alerte(s) :</strong>
+            <ul style="margin:0;">${data.alertes.slice(0, 8).map(a => `<li>${a.message}</li>`).join('')}</ul>
+        </div>` : '';
+    
 
     const gardesParCle = {};
     data.gardes.forEach(g => gardesParCle[`${g.jour}-${g.poste_id}`] = g);
@@ -149,6 +152,12 @@ async function calculerHeures() {
     if (!utilisateur) return;
     chargerGrille();
 })();
+
+async function genererRotation() {
+    const resultat = await apiJSON(`/plannings/${planningId}/generer-rotation/`, { method: 'POST' });
+    if (resultat.message) alert(resultat.message);
+    chargerGrille();
+}
 </script>
 </body>
 </html>
