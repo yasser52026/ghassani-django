@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Connexion — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="page-connexion">
+    <div class="panneau-image">
+        <svg class="emblem-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="16" fill="rgba(255,255,255,0.12)"/>
+            <path d="M32 14V50M14 32H50" stroke="white" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+        <h1>Centre Hospitalier<br>Régional de Fès</h1>
+        <p>Plateforme de gestion des gardes et des heures supplémentaires — Hôpital Al Ghassani.</p>
+    </div>
+    <div class="panneau-formulaire">
+        <div class="carte-connexion">
+            <h4 class="mb-3">Connexion</h4>
+            <div id="erreur" class="alert alert-danger" style="display:none;"></div>
+            <form id="formConnexion">
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" id="email" class="form-control" required autofocus>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mot de passe</label>
+                    <input type="password" id="motDePasse" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-bottom:0.5rem;">Se connecter</button>
+                <a href="/inscription.html" style="display:block;text-align:center;font-size:0.9rem;">Créer un compte</a>
+            </form>
+        </div>
+    </div>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script>
+document.getElementById('formConnexion').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const motDePasse = document.getElementById('motDePasse').value;
+    const erreurDiv = document.getElementById('erreur');
+    erreurDiv.style.display = 'none';
+
+    try {
+        const reponse = await fetch('http://127.0.0.1:8000/api/auth/connexion/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: motDePasse }),
+        });
+        if (!reponse.ok) throw new Error('Identifiants incorrects');
+        const data = await reponse.json();
+        localStorage.setItem('access_token', data.access);
+        localStorage.setItem('refresh_token', data.refresh);
+        window.location.href = '/index.html';
+    } catch (err) {
+        erreurDiv.textContent = 'Email ou mot de passe incorrect.';
+        erreurDiv.style.display = 'block';
+    }
+});
+</script>
+</body>
+</html>

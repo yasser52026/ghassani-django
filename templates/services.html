@@ -1,0 +1,79 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Services — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Services</h2><p>Postes, vacations et effectifs par service</p></div>
+            <div class="page-header-actions" id="zoneActionsAdmin" style="display:none;">
+                <button class="btn btn-light" onclick="document.getElementById('formNouveauService').style.display='block';">Nouveau service</button>
+            </div>
+        </div>
+
+        <div class="card p-4 mb-3" id="formNouveauService" style="display:none;max-width:500px;">
+            <h5 class="mb-3">Nouveau service</h5>
+            <form id="formService">
+                <div class="mb-3"><label class="form-label">Nom</label><input type="text" id="nomService" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">Description</label><input type="text" id="descriptionService" class="form-control"></div>
+                <button type="submit" class="btn btn-primary">Créer</button>
+            </form>
+        </div>
+
+        <div id="listeServices" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;"></div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+(async () => {
+    const utilisateur = await chargerLayout('services');
+    if (!utilisateur) return;
+
+    if (utilisateur.role === 'administrateur') {
+        document.getElementById('zoneActionsAdmin').style.display = 'flex';
+    }
+
+    async function chargerServices() {
+        const services = await apiJSON('/services/');
+        const conteneur = document.getElementById('listeServices');
+        if (!services.length) {
+            conteneur.innerHTML = '<p style="color:var(--gris-texte);">Aucun service enregistré.</p>';
+            return;
+        }
+        conteneur.innerHTML = services.map(s => `
+            <div class="card p-3">
+                <h5>${s.nom}</h5>
+                <p style="color:var(--gris-texte);font-size:0.85rem;">${s.description || ''}</p>
+                <p><span class="badge">${s.postes.length} poste(s)</span></p>
+                <a href="/service-detail.html?id=${s.id}" class="btn btn-sm btn-outline-light" style="color:var(--bleu-principal);border-color:var(--bleu-principal);">Détails</a>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('formService').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await apiJSON('/services/', {
+            method: 'POST',
+            body: JSON.stringify({
+                nom: document.getElementById('nomService').value,
+                description: document.getElementById('descriptionService').value,
+                vacation_cumulee: false,
+            }),
+        });
+        document.getElementById('formService').reset();
+        document.getElementById('formNouveauService').style.display = 'none';
+        chargerServices();
+    });
+
+    chargerServices();
+})();
+</script>
+</body>
+</html>

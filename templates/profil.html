@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mon profil — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2 id="nomComplet">...</h2><p id="sousTitre"></p></div>
+            <div class="page-header-actions">
+                <span id="badgeDisponibilite" class="badge" style="font-size:0.9rem;"></span>
+                <button class="btn btn-light" id="boutonBasculer" onclick="basculerDisponibilite()"></button>
+            </div>
+        </div>
+        <div class="card p-3">
+            <h5 class="mb-3">Mes heures supplémentaires</h5>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mois</th><th>Ouvrable</th><th>Vendredi</th><th>Ramadan</th>
+                        <th>Week-end/férié</th><th>Nuit</th><th>Total</th><th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody id="corpsDecomptes"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+const LIBELLES_ROLES = {
+    administrateur: 'Administrateur', gestionnaire: 'Gestionnaire RH / Paie',
+    chef_service: 'Chef de service', directeur: 'Directeur', consultation: 'Consultation seule',
+};
+
+function majDisponibilite(disponible) {
+    document.getElementById('badgeDisponibilite').textContent = disponible ? 'Disponible' : 'Indisponible';
+    document.getElementById('boutonBasculer').textContent = `Me marquer ${disponible ? 'indisponible' : 'disponible'}`;
+}
+
+async function basculerDisponibilite() {
+    const data = await apiJSON('/comptes/disponibilite/basculer/', { method: 'POST' });
+    majDisponibilite(data.disponible);
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('profil');
+    if (!utilisateur) return;
+
+    document.getElementById('nomComplet').textContent = utilisateur.nom_complet;
+    document.getElementById('sousTitre').textContent = `${utilisateur.matricule} — ${LIBELLES_ROLES[utilisateur.role] || utilisateur.role}`;
+    majDisponibilite(utilisateur.disponible);
+
+    const decomptes = await apiJSON('/decomptes/mes-decomptes/');
+    document.getElementById('corpsDecomptes').innerHTML = decomptes.length ? decomptes.map(d => `
+        <tr>
+            <td>${d.mois}/${d.annee}</td><td>${d.heures_ouvrable} h</td><td>${d.heures_vendredi} h</td>
+            <td>${d.heures_ramadan} h</td><td>${d.heures_weekend_ferie} h</td><td>${d.heures_nuit} h</td>
+            <td><strong>${d.total_heures} h</strong></td><td><span class="badge">${d.statut_validation}</span></td>
+        </tr>
+    `).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--gris-texte);">Aucun décompte pour le moment.</td></tr>';
+})();
+</script>
+</body>
+</html>

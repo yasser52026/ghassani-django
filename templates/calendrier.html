@@ -1,0 +1,125 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Calendrier — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Calendrier annuel &amp; barèmes</h2><p>Jours fériés, périodes de Ramadan et indemnités de garde</p></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+            <div class="card p-3">
+                <h5 class="mb-3">Jours fériés</h5>
+                <table id="tableJoursFeries"><tbody></tbody></table>
+                <form id="formJourFerie" style="margin-top:1rem;display:grid;gap:0.5rem;">
+                    <input type="date" id="dateJourFerie" class="form-control" required>
+                    <input type="text" id="libelleJourFerie" class="form-control" placeholder="Libellé" required>
+                    <button class="btn btn-primary btn-sm">Ajouter</button>
+                </form>
+            </div>
+
+            <div class="card p-3">
+                <h5 class="mb-3">Périodes de Ramadan</h5>
+                <table id="tableRamadan"><tbody></tbody></table>
+                <form id="formRamadan" style="margin-top:1rem;display:grid;gap:0.5rem;">
+                    <input type="date" id="debutRamadan" class="form-control" required>
+                    <input type="date" id="finRamadan" class="form-control" required>
+                    <button class="btn btn-primary btn-sm">Ajouter</button>
+                </form>
+            </div>
+
+            <div class="card p-3">
+                <h5 class="mb-3">Barème des heures supp.</h5>
+                <table>
+                    <thead><tr><th>Vacation</th><th>Catégorie</th><th>Heures</th><th>Depuis</th></tr></thead>
+                    <tbody id="tableBareme"></tbody>
+                </table>
+                <form id="formBareme" style="margin-top:1rem;display:grid;gap:0.5rem;">
+                    <select id="typeVacationBareme" class="form-select"><option value="jour">Jour</option><option value="nuit">Nuit</option></select>
+                    <select id="categorieBareme" class="form-select">
+                        <option value="ouvrable">Ouvrable</option><option value="vendredi">Vendredi</option>
+                        <option value="ramadan">Ramadan</option><option value="weekend_ferie">Week-end / férié</option>
+                    </select>
+                    <input type="number" step="0.5" id="heuresBareme" class="form-control" placeholder="Heures" required>
+                    <input type="date" id="dateEffetBareme" class="form-control" required>
+                    <button class="btn btn-primary btn-sm">Ajouter</button>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+(async () => {
+    const utilisateur = await chargerLayout('calendrier');
+    if (!utilisateur) return;
+
+    async function chargerTout() {
+        const feries = await apiJSON('/calendrier/jours-feries/');
+        document.querySelector('#tableJoursFeries tbody').innerHTML = feries.map(j =>
+            `<tr><td>${j.date}</td><td>${j.libelle}</td></tr>`
+        ).join('') || '<tr><td colspan="2" style="color:var(--gris-texte);">Aucun jour férié saisi.</td></tr>';
+
+        const ramadan = await apiJSON('/calendrier/ramadan/');
+        document.querySelector('#tableRamadan tbody').innerHTML = ramadan.map(r =>
+            `<tr><td>${r.annee}</td><td>${r.date_debut} — ${r.date_fin}</td></tr>`
+        ).join('') || '<tr><td colspan="2" style="color:var(--gris-texte);">Aucune période saisie.</td></tr>';
+
+        const bareme = await apiJSON('/calendrier/baremes/');
+        document.getElementById('tableBareme').innerHTML = bareme.map(b =>
+            `<tr><td>${b.type_vacation === 'jour' ? 'Jour' : 'Nuit'}</td><td>${b.categorie_jour}</td><td>${b.heures} h</td><td>${b.date_effet}</td></tr>`
+        ).join('') || '<tr><td colspan="4" style="color:var(--gris-texte);">Aucun barème saisi.</td></tr>';
+    }
+
+    document.getElementById('formJourFerie').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await apiJSON('/calendrier/jours-feries/', {
+            method: 'POST',
+            body: JSON.stringify({ date: document.getElementById('dateJourFerie').value, libelle: document.getElementById('libelleJourFerie').value }),
+        });
+        e.target.reset();
+        chargerTout();
+    });
+
+    document.getElementById('formRamadan').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await apiJSON('/calendrier/ramadan/', {
+            method: 'POST',
+            body: JSON.stringify({
+                annee: new Date(document.getElementById('debutRamadan').value).getFullYear(),
+                date_debut: document.getElementById('debutRamadan').value,
+                date_fin: document.getElementById('finRamadan').value,
+            }),
+        });
+        e.target.reset();
+        chargerTout();
+    });
+
+    document.getElementById('formBareme').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await apiJSON('/calendrier/baremes/', {
+            method: 'POST',
+            body: JSON.stringify({
+                type_vacation: document.getElementById('typeVacationBareme').value,
+                categorie_jour: document.getElementById('categorieBareme').value,
+                heures: parseFloat(document.getElementById('heuresBareme').value),
+                date_effet: document.getElementById('dateEffetBareme').value,
+            }),
+        });
+        e.target.reset();
+        chargerTout();
+    });
+
+    chargerTout();
+})();
+</script>
+</body>
+</html>

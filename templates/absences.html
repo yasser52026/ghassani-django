@@ -1,0 +1,80 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Absences — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Absences / congés</h2><p>Les gardes couvertes par une absence ne sont pas créditées</p></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;">
+            <div class="card p-3">
+                <table>
+                    <thead><tr><th>Agent</th><th>Du</th><th>Au</th><th>Motif</th><th></th></tr></thead>
+                    <tbody id="corpsAbsences"></tbody>
+                </table>
+            </div>
+            <div class="card p-3">
+                <h5 class="mb-3">Nouvelle absence</h5>
+                <form id="formAbsence">
+                    <div class="mb-3"><label class="form-label">Agent</label><select id="agentId" class="form-select" required></select></div>
+                    <div class="mb-3"><label class="form-label">Du</label><input type="date" id="dateDebut" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Au</label><input type="date" id="dateFin" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Motif</label><input type="text" id="motif" class="form-control"></div>
+                    <button class="btn btn-primary" style="width:100%;">Enregistrer</button>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+async function chargerAbsences() {
+    const absences = await apiJSON('/absences/');
+    document.getElementById('corpsAbsences').innerHTML = absences.length ? absences.map(a => `
+        <tr>
+            <td>${a.agent_nom}</td><td>${a.date_debut}</td><td>${a.date_fin}</td><td>${a.motif || '—'}</td>
+            <td><button class="btn btn-sm btn-outline-danger" onclick="supprimerAbsence(${a.id})">Supprimer</button></td>
+        </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Aucune absence enregistrée.</td></tr>';
+}
+
+async function supprimerAbsence(id) {
+    await api(`/absences/${id}/`, { method: 'DELETE' });
+    chargerAbsences();
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('absences');
+    if (!utilisateur) return;
+
+    const agents = await apiJSON('/comptes/agents/');
+    document.getElementById('agentId').innerHTML = agents.map(a => `<option value="${a.id}">${a.nom_complet}</option>`).join('');
+
+    document.getElementById('formAbsence').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await apiJSON('/absences/', {
+            method: 'POST',
+            body: JSON.stringify({
+                agent: document.getElementById('agentId').value,
+                date_debut: document.getElementById('dateDebut').value,
+                date_fin: document.getElementById('dateFin').value,
+                motif: document.getElementById('motif').value,
+            }),
+        });
+        e.target.reset();
+        chargerAbsences();
+    });
+
+    chargerAbsences();
+})();
+</script>
+</body>
+</html>

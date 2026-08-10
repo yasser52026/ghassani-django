@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Détail service — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2 id="nomService">...</h2><p id="descriptionService"></p></div>
+        </div>
+
+        <div class="card p-3" style="max-width:700px;">
+            <h5 class="mb-3">Postes / vacations</h5>
+            <table>
+                <thead><tr><th>Type</th><th>Horaires</th><th>Effectif attendu</th><th></th></tr></thead>
+                <tbody id="corpsPostes"></tbody>
+            </table>
+
+            <form id="formPoste" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;margin-top:1rem;align-items:end;">
+                <div>
+                    <label class="form-label">Type</label>
+                    <select id="typeVacation" class="form-select"><option value="jour">Jour</option><option value="nuit">Nuit</option></select>
+                </div>
+                <div><label class="form-label">Début</label><input type="time" id="heureDebut" class="form-control" required></div>
+                <div><label class="form-label">Fin</label><input type="time" id="heureFin" class="form-control" required></div>
+                <div><label class="form-label">Effectif</label><input type="number" id="effectifAttendu" class="form-control" value="1" min="1" required></div>
+                <div><button class="btn btn-primary btn-sm">Ajouter</button></div>
+            </form>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const serviceId = params.get('id');
+
+async function chargerService() {
+    const service = await apiJSON(`/services/${serviceId}/`);
+    document.getElementById('nomService').textContent = service.nom;
+    document.getElementById('descriptionService').textContent = service.description || '';
+
+    document.getElementById('corpsPostes').innerHTML = service.postes.length ? service.postes.map(p => `
+        <tr>
+            <td>${p.type_vacation === 'jour' ? 'Jour' : 'Nuit'}</td>
+            <td>${p.heure_debut.slice(0,5)} — ${p.heure_fin.slice(0,5)}</td>
+            <td>${p.effectif_attendu}</td>
+            <td><button class="btn btn-sm btn-outline-danger" onclick="supprimerPoste(${p.id})">×</button></td>
+        </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gris-texte);">Aucun poste défini.</td></tr>';
+}
+
+async function supprimerPoste(id) {
+    await api(`/postes/${id}/`, { method: 'DELETE' });
+    chargerService();
+}
+
+document.getElementById('formPoste').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await apiJSON('/postes/', {
+        method: 'POST',
+        body: JSON.stringify({
+            service: serviceId,
+            type_vacation: document.getElementById('typeVacation').value,
+            heure_debut: document.getElementById('heureDebut').value,
+            heure_fin: document.getElementById('heureFin').value,
+            effectif_attendu: parseInt(document.getElementById('effectifAttendu').value),
+        }),
+    });
+    e.target.reset();
+    document.getElementById('effectifAttendu').value = 1;
+    chargerService();
+});
+
+(async () => {
+    const utilisateur = await chargerLayout('services');
+    if (!utilisateur) return;
+    chargerService();
+})();
+</script>
+</body>
+</html>

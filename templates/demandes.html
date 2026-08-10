@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Demandes — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Comptes en attente</h2><p>Demandes d'inscription à valider par le service RH</p></div>
+        </div>
+        <div id="listeDemandes"></div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+let services = [];
+
+
+async function chargerDemandes() {
+    const demandes = await apiJSON('/comptes/en-attente/');
+    const conteneur = document.getElementById('listeDemandes');
+    if (!demandes.length) {
+        conteneur.innerHTML = '<p style="color:var(--gris-texte);">Aucune demande en attente.</p>';
+        return;
+    }
+    conteneur.innerHTML = demandes.map(d => `
+        <div class="card p-3 mb-3">
+            <h5>${d.nom_complet} <span style="color:var(--gris-texte);font-size:0.85rem;">(${d.matricule})</span></h5>
+            <p style="color:var(--gris-texte);font-size:0.85rem;">${d.email} — ${d.fonction || '—'} — CIN: ${d.cin || '—'} — Tél: ${d.telephone || '—'}</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;align-items:end;">
+                <div><label class="form-label">Rôle</label>
+                    <select id="role-${d.id}" class="form-select">
+                        ${Object.entries(LIBELLES_ROLES).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+                    </select>
+                </div>
+                <div><label class="form-label">Service</label>
+                    <select id="service-${d.id}" class="form-select">
+                        <option value="">—</option>
+                        ${services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('')}
+                    </select>
+                </div>
+                <div><button class="btn btn-primary btn-sm" onclick="valider(${d.id})">Valider</button></div>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" style="margin-top:0.5rem;" onclick="rejeter(${d.id})">Rejeter</button>
+        </div>
+    `).join('');
+}
+
+async function valider(id) {
+    const role = document.getElementById(`role-${id}`).value;
+    const serviceId = document.getElementById(`service-${id}`).value || null;
+    await apiJSON(`/comptes/${id}/valider/`, { method: 'POST', body: JSON.stringify({ role, service_id: serviceId }) });
+    chargerDemandes();
+}
+
+async function rejeter(id) {
+    if (!confirm('Rejeter et supprimer cette demande ?')) return;
+    await apiJSON(`/comptes/${id}/rejeter/`, { method: 'POST' });
+    chargerDemandes();
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('demandes');
+    if (!utilisateur) return;
+    services = await apiJSON('/services/');
+    chargerDemandes();
+})();
+</script>
+</body>
+</html>

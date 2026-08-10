@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Décompte — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2 id="titreService">Décompte</h2><p id="sousTitre"></p></div>
+            <div class="page-header-actions">
+                <button id="boutonExcel" class="btn btn-outline-light" onclick="telechargerExport('excel')">Export Excel</button>
+                <button id="boutonPdf" class="btn btn-outline-light" onclick="telechargerExport('pdf')">Bordereau PDF</button>
+                <button id="boutonValider" class="btn btn-light" style="display:none;" onclick="validerDecompte()">Valider</button>
+            </div>
+        </div>
+        <div class="card p-3">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Matricule</th><th>Nom et prénom</th>
+                        <th>Ouvrable</th><th>Vendredi</th><th>Ramadan</th><th>Week-end/férié</th>
+                        <th>Nuit</th><th>Total</th><th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody id="corpsDecompte"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const serviceId = params.get('service_id');
+const annee = params.get('annee');
+const mois = params.get('mois');
+
+async function chargerDecompte() {
+    const service = await apiJSON(`/services/${serviceId}/`);
+    document.getElementById('titreService').textContent = `Décompte — ${service.nom}`;
+    document.getElementById('sousTitre').textContent = `${mois}/${annee}`;
+
+    const data = await apiJSON(`/decomptes/${serviceId}/${annee}/${mois}/`);
+    const corps = document.getElementById('corpsDecompte');
+    if (!data.decomptes.length) {
+        corps.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gris-texte);">Aucun décompte calculé. Ouvrez le planning et cliquez sur « Calculer ».</td></tr>';
+    } else {
+        corps.innerHTML = data.decomptes.map(d => `
+            <tr>
+                <td>${d.agent_matricule}</td><td>${d.agent_nom}</td>
+                <td>${d.heures_ouvrable} h</td><td>${d.heures_vendredi} h</td><td>${d.heures_ramadan} h</td>
+                <td>${d.heures_weekend_ferie} h</td><td>${d.heures_nuit} h</td>
+                <td><strong>${d.total_heures} h</strong></td><td><span class="badge">${d.statut_validation}</span></td>
+            </tr>
+        `).join('');
+    }
+
+async function telechargerExport(type) {
+    const reponse = await api(`/decomptes/${serviceId}/${annee}/${mois}/export/${type}/`);
+    const blob = await reponse.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = type === 'excel' ? `decompte_${annee}_${mois}.xlsx` : `bordereau_${annee}_${mois}.pdf`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+}
+
+async function validerDecompte() {
+    await apiJSON(`/decomptes/${serviceId}/${annee}/${mois}/valider/`, { method: 'POST' });
+    chargerDecompte();
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('decomptes');
+    if (!utilisateur) return;
+    if (['chef_service', 'directeur', 'administrateur'].includes(utilisateur.role)) {
+        document.getElementById('boutonValider').style.display = 'inline-block';
+    }
+    chargerDecompte();
+})();
+</script>
+</body>
+</html>

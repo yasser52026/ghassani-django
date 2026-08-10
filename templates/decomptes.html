@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Décomptes — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>États récapitulatifs</h2><p>Sélectionnez un service et un mois pour consulter le décompte</p></div>
+        </div>
+        <div class="card p-4" style="max-width:480px;">
+            <div class="mb-3">
+                <label class="form-label">Service</label>
+                <select id="serviceId" class="form-select"></select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                <div><label class="form-label">Mois</label>
+                    <select id="mois" class="form-select">
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                        <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                        <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                    </select>
+                </div>
+                <div><label class="form-label">Année</label><input type="number" id="annee" class="form-control" value="2026"></div>
+            </div>
+            <button class="btn btn-primary" style="width:100%;margin-top:1rem;" onclick="voirDecompte()">Voir le décompte</button>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+(async () => {
+    const utilisateur = await chargerLayout('decomptes');
+    if (!utilisateur) return;
+    const services = await apiJSON('/services/');
+    document.getElementById('serviceId').innerHTML = services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+    document.getElementById('mois').value = new Date().getMonth() + 1;
+})();
+
+function voirDecompte() {
+    const serviceId = document.getElementById('serviceId').value;
+    const mois = document.getElementById('mois').value;
+    const annee = document.getElementById('annee').value;
+    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}`;
+}
+</script>
+</body>
+</html>

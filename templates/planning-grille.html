@@ -1,0 +1,154 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Grille planning — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2 id="titreService">...</h2><p id="sousTitre"></p></div>
+            <div class="page-header-actions">
+                <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
+                <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
+            </div>
+        </div>
+        <div id="zoneAlertes"></div>
+        <datalist id="listeAgents"></datalist>
+        <div class="card p-3">
+            <div style="overflow-x:auto;">
+                <table id="tableGrille" style="font-size:0.85rem;">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const serviceId = params.get('service_id');
+const annee = params.get('annee');
+const mois = params.get('mois');
+let planningId = null;
+let agentsMap = {};
+
+function attacherSuppression(chip) {
+    chip.querySelector('.chip-remove').addEventListener('click', () => chip.remove());
+}
+
+function cellule(garde) {
+    const chips = garde.affectations.map(a => `
+        <span class="chip" data-agent-id="${a.agent_id}">
+            ${a.agent_nom}
+            <button type="button" class="chip-remove">&times;</button>
+        </span>
+    `).join('');
+    return `
+        <div class="cellule-agents" data-garde-id="${garde.id}">
+            <div class="chips-container">${chips}</div>
+            <input type="text" class="form-control agent-input" list="listeAgents" placeholder="+ agent..." autocomplete="off" style="font-size:0.78rem;padding:2px 6px;">
+        </div>
+    `;
+}
+
+function activerCellules() {
+    document.querySelectorAll('.chip').forEach(attacherSuppression);
+    document.querySelectorAll('.cellule-agents').forEach((cel) => {
+        const input = cel.querySelector('.agent-input');
+        const chipsContainer = cel.querySelector('.chips-container');
+
+        function ajouter(nom, agentId) {
+            if (cel.querySelector(`[data-agent-id="${agentId}"]`)) return;
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.dataset.agentId = agentId;
+            chip.innerHTML = `${nom} <button type="button" class="chip-remove">&times;</button>`;
+            attacherSuppression(chip);
+            chipsContainer.appendChild(chip);
+        }
+
+        function tenter() {
+            const val = input.value.trim();
+            if (agentsMap[val]) { ajouter(val, agentsMap[val]); input.value = ''; }
+        }
+        input.addEventListener('input', tenter);
+        input.addEventListener('change', tenter);
+    });
+}
+
+async function chargerGrille() {
+    const data = await apiJSON(`/plannings/${serviceId}/${annee}/${mois}/`);
+    planningId = data.planning.id;
+
+    document.getElementById('titreService').textContent = data.planning.mois_libelle ? '' : '';
+    const service = await apiJSON(`/services/${serviceId}/`);
+    document.getElementById('titreService').textContent = service.nom;
+    document.getElementById('sousTitre').textContent = `${data.planning.mois_libelle || mois}/${annee} — statut : ${data.planning.statut}`;
+
+    agentsMap = {};
+    data.agents_du_service.forEach(a => agentsMap[a.nom_complet] = a.id);
+    document.getElementById('listeAgents').innerHTML = data.agents_du_service.map(a => `<option value="${a.nom_complet}">`).join('');
+
+    if (data.alertes.length) {
+        document.getElementById('zoneAlertes').innerHTML = `
+            <div class="alert alert-warning">
+                <strong>${data.alertes.length} alerte(s) :</strong>
+                <ul style="margin:0;">${data.alertes.slice(0, 8).map(a => `<li>${a.message}</li>`).join('')}</ul>
+            </div>`;
+    }
+
+    const gardesParCle = {};
+    data.gardes.forEach(g => gardesParCle[`${g.jour}-${g.poste_id}`] = g);
+
+    const thead = document.querySelector('#tableGrille thead');
+    thead.innerHTML = `<tr><th style="width:70px;">Jour</th>${data.postes.map(p =>
+        `<th>${p.type_vacation === 'jour' ? 'Garde de jour' : 'Garde de nuit'}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small></th>`
+    ).join('')}</tr>`;
+
+    const tbody = document.querySelector('#tableGrille tbody');
+    tbody.innerHTML = data.jours.map(j => `
+        <tr class="jour-${j.categorie}">
+            <td><strong>${j.numero}</strong> ${j.nom_jour}</td>
+            ${data.postes.map(p => {
+                const garde = gardesParCle[`${j.numero}-${p.id}`];
+                return `<td style="min-width:180px;">${garde ? cellule(garde) : ''}</td>`;
+            }).join('')}
+        </tr>
+    `).join('');
+
+    activerCellules();
+}
+
+async function enregistrerGrille() {
+    const gardesData = [];
+    document.querySelectorAll('.cellule-agents').forEach((cel) => {
+        const agentIds = Array.from(cel.querySelectorAll('.chip')).map(c => parseInt(c.dataset.agentId));
+        gardesData.push({ garde_id: parseInt(cel.dataset.gardeId), agent_ids: agentIds });
+    });
+    await apiJSON(`/plannings/${planningId}/enregistrer/`, {
+        method: 'POST',
+        body: JSON.stringify({ gardes: gardesData }),
+    });
+    chargerGrille();
+}
+
+async function calculerHeures() {
+    await apiJSON(`/plannings/${planningId}/calculer/`, { method: 'POST' });
+    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}`;
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('plannings');
+    if (!utilisateur) return;
+    chargerGrille();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+from django.db import models
+
+
+class Planning(models.Model):
+    service = models.ForeignKey('referentiels.Service', on_delete=models.CASCADE, related_name='plannings')
+    annee = models.IntegerField()
+    mois = models.IntegerField()
+    statut = models.CharField(max_length=20, default='brouillon')
+
+    class Meta:
+        unique_together = ('service', 'annee', 'mois')
+
+
+class Garde(models.Model):
+    planning = models.ForeignKey(Planning, on_delete=models.CASCADE, related_name='gardes')
+    poste = models.ForeignKey('referentiels.Poste', on_delete=models.CASCADE)
+    date = models.DateField()
+
+    class Meta:
+        unique_together = ('planning', 'poste', 'date')
+
+
+class AffectationGarde(models.Model):
+    garde = models.ForeignKey(Garde, on_delete=models.CASCADE, related_name='affectations')
+    agent = models.ForeignKey('comptes.Utilisateur', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('garde', 'agent')

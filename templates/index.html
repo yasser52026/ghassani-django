@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Tableau de bord — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Tableau de bord</h2><p>Vue d'ensemble des heures supplémentaires</p></div>
+        </div>
+        <div class="card p-4">
+            <h5 style="margin-bottom:1rem;">Mes décomptes récents</h5>
+            <table>
+                <thead><tr><th>Mois</th><th>Total</th><th>Statut</th></tr></thead>
+                <tbody id="corpsDecomptes"><tr><td colspan="3" style="text-align:center;color:var(--gris-texte);">Chargement...</td></tr></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+(async () => {
+    const utilisateur = await chargerLayout('accueil');
+    if (!utilisateur) return;
+
+    try {
+        const decomptes = await apiJSON('/decomptes/mes-decomptes/');
+        const corps = document.getElementById('corpsDecomptes');
+        if (!decomptes.length) {
+            corps.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--gris-texte);">Aucun décompte pour le moment.</td></tr>';
+        } else {
+            corps.innerHTML = decomptes.map(d => `
+                <tr><td>${d.mois}/${d.annee}</td><td>${d.total_heures} h</td><td><span class="badge">${d.statut_validation}</span></td></tr>
+            `).join('');
+        }
+    } catch (e) { console.error(e); }
+})();
+</script>
+</body>
+</html>

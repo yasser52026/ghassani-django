@@ -1,0 +1,142 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Agents — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Agents / comptes utilisateurs</h2><p>Référentiel du personnel et des accès</p></div>
+            <div class="page-header-actions" id="zoneActionsAdmin" style="display:none;">
+                <button class="btn btn-light" onclick="ouvrirFormulaire()">Nouveau compte</button>
+            </div>
+        </div>
+
+        <div class="card p-4 mb-3" id="formulaireAgent" style="display:none;max-width:640px;">
+            <h5 class="mb-3" id="titreFormulaire">Nouveau compte</h5>
+            <form id="formAgent">
+                <input type="hidden" id="agentId">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="mb-3"><label class="form-label">Matricule</label><input type="text" id="matricule" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" id="email" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Nom</label><input type="text" id="nom" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Prénom</label><input type="text" id="prenom" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Fonction</label><input type="text" id="fonction" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Service</label><select id="serviceId" class="form-select"><option value="">—</option></select></div>
+                    <div class="mb-3"><label class="form-label">Rôle</label>
+                        <select id="role" class="form-select">
+                            <option value="administrateur">Administrateur</option>
+                            <option value="gestionnaire">Gestionnaire RH / Paie</option>
+                            <option value="chef_service">Chef de service</option>
+                            <option value="directeur">Directeur</option>
+                            <option value="consultation">Consultation seule</option>
+                        </select>
+                    </div>
+                    <div class="mb-3"><label class="form-label">CIN</label><input type="text" id="cin" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Téléphone</label><input type="text" id="telephone" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">RIB</label><input type="text" id="rib" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Mot de passe</label><input type="password" id="motDePasse" class="form-control"></div>
+                </div>
+                <button class="btn btn-primary">Enregistrer</button>
+                <button type="button" class="btn btn-outline-danger" onclick="fermerFormulaire()">Annuler</button>
+            </form>
+        </div>
+
+        <div class="card p-3">
+            <table>
+                <thead><tr><th>Matricule</th><th>Nom et prénom</th><th>Email</th><th>Rôle</th><th>Service</th><th>Disponibilité</th><th></th></tr></thead>
+                <tbody id="corpsAgents"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+
+let services = [];
+
+function ouvrirFormulaire(agent) {
+    document.getElementById('formulaireAgent').style.display = 'block';
+    document.getElementById('titreFormulaire').textContent = agent ? 'Modifier le compte' : 'Nouveau compte';
+    document.getElementById('agentId').value = agent ? agent.id : '';
+    document.getElementById('matricule').value = agent ? agent.matricule : '';
+    document.getElementById('matricule').disabled = !!agent;
+    document.getElementById('email').value = agent ? agent.email : '';
+    document.getElementById('nom').value = agent ? agent.nom : '';
+    document.getElementById('prenom').value = agent ? agent.prenom : '';
+    document.getElementById('fonction').value = agent ? (agent.fonction || '') : '';
+    document.getElementById('serviceId').value = agent && agent.service ? agent.service : '';
+    document.getElementById('role').value = agent ? agent.role : 'consultation';
+    document.getElementById('cin').value = agent ? (agent.cin || '') : '';
+    document.getElementById('telephone').value = agent ? (agent.telephone || '') : '';
+    document.getElementById('rib').value = agent ? (agent.rib || '') : '';
+    document.getElementById('motDePasse').value = '';
+    document.getElementById('motDePasse').placeholder = agent ? 'Laisser vide pour ne pas changer' : '';
+    document.getElementById('motDePasse').required = !agent;
+}
+
+function fermerFormulaire() {
+    document.getElementById('formulaireAgent').style.display = 'none';
+    document.getElementById('formAgent').reset();
+}
+
+async function chargerAgents() {
+    const agents = await apiJSON('/comptes/agents/');
+    document.getElementById('corpsAgents').innerHTML = agents.map(a => {
+        const service = services.find(s => s.id === a.service);
+        return `
+        <tr>
+            <td>${a.matricule}</td><td>${a.nom_complet}</td><td>${a.email}</td>
+            <td>${LIBELLES_ROLES[a.role] || a.role}</td><td>${service ? service.nom : '—'}</td>
+            <td><span class="badge">${a.disponible ? 'disponible' : 'indisponible'}</span></td>
+            <td><button class="btn btn-sm btn-outline-danger" onclick='ouvrirFormulaire(${JSON.stringify(a)})'>Modifier</button></td>
+        </tr>`;
+    }).join('');
+}
+
+document.getElementById('formAgent').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('agentId').value;
+    const corps = {
+        email: document.getElementById('email').value,
+        nom: document.getElementById('nom').value,
+        prenom: document.getElementById('prenom').value,
+        fonction: document.getElementById('fonction').value,
+        service: document.getElementById('serviceId').value || null,
+        role: document.getElementById('role').value,
+        cin: document.getElementById('cin').value,
+        telephone: document.getElementById('telephone').value,
+        rib: document.getElementById('rib').value,
+    };
+    const motDePasse = document.getElementById('motDePasse').value;
+    if (motDePasse) corps.mot_de_passe = motDePasse;
+    if (!id) corps.matricule = document.getElementById('matricule').value;
+
+    if (id) {
+        await apiJSON(`/comptes/agents/${id}/`, { method: 'PATCH', body: JSON.stringify(corps) });
+    } else {
+        await apiJSON('/comptes/agents/', { method: 'POST', body: JSON.stringify(corps) });
+    }
+    fermerFormulaire();
+    chargerAgents();
+});
+
+(async () => {
+    const utilisateur = await chargerLayout('agents');
+    if (!utilisateur) return;
+    if (['administrateur', 'gestionnaire'].includes(utilisateur.role)) {
+        document.getElementById('zoneActionsAdmin').style.display = 'flex';
+    }
+    services = await apiJSON('/services/');
+    document.getElementById('serviceId').innerHTML += services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+    chargerAgents();
+})();
+</script>
+</body>
+</html>
