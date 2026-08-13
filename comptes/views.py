@@ -3,8 +3,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from .models import Utilisateur, ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_DIRECTEUR, ROLE_CHEF_SERVICE
-from .serializers import UtilisateurSerializer, InscriptionSerializer, ValidationInscriptionSerializer
+from .models import Utilisateur, Notification, ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_DIRECTEUR, ROLE_CHEF_SERVICE
+from .serializers import (
+    UtilisateurSerializer, InscriptionSerializer, ValidationInscriptionSerializer,
+    ProfilPersonnelSerializer, NotificationSerializer,
+)
 from .permissions import role_requis
 
 
@@ -12,7 +15,9 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
     serializer_class = UtilisateurSerializer
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+        if self.action == 'destroy':
+            return [role_requis(ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_CHEF_SERVICE)()]
+        if self.action in ('create', 'update', 'partial_update'):
             return [role_requis(ROLE_ADMIN, ROLE_GESTIONNAIRE)()]
         return [role_requis(ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_DIRECTEUR, ROLE_CHEF_SERVICE)()]
 
@@ -30,14 +35,53 @@ class MoiView(APIView):
     def get(self, request):
         return Response(UtilisateurSerializer(request.user).data)
 
+    def patch(self, request):
+        if Utilisateur.objects.filter(email=request.data.get('email', request.user.email).lower()).exclude(id=request.user.id).exists():
+            return Response({'detail': "Cet email est déjà utilisé."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ProfilPersonnelSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UtilisateurSerializer(request.user).data)
+
 
 class BasculerDisponibiliteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        request.user.disponible = not request.user.disponible
-        request.user.save()
-        return Response({'disponible': request.user.disponible})
+        agent = request.user
+        agent.disponible = not agent.disponible
+        agent.save()
+
+        if not agent.disponible:
+            destinataires = Utilisateur.objects.filter(
+                role__in=[ROLE_ADMIN, ROLE_GESTIONNAIRE, ROLE_DIRECTEUR]
+            ) | Utilisateur.objects.filter(role=ROLE_CHEF_SERVICE, service_id=agent.service_id)
+            Notification.objects.bulk_create([
+                Notification(
+                    destinataire=d,
+                    agent_concerne=agent,
+                    message=f"{agent.nom_complet} s'est marqué(e) indisponible.",
+                )
+                for d in destinataires.exclude(id=agent.id).distinct()
+            ])
+
+        return Response({'disponible': agent.disponible})
+
+
+class NotificationsNonLuesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifications = request.user.notifications.filter(lue=False)
+        return Response(NotificationSerializer(notifications, many=True).data)
+
+
+class MarquerNotificationsLuesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        request.user.notifications.filter(lue=False).update(lue=True)
+        return Response({'detail': 'Notifications marquées comme lues.'})
 
 
 class InscriptionView(APIView):

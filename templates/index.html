@@ -3,7 +3,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Tableau de bord — CHR de Fès</title>
+    <title>Mes décomptes — CHR de Fès</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <style>
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
@@ -21,7 +21,7 @@
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2>Tableau de bord</h2><p>Vue d'ensemble des heures supplémentaires — <span id="periode"></span></p></div>
+            <div><h2>Mes décomptes</h2><p>Vue d'ensemble des heures supplémentaires — <span id="periode"></span></p></div>
         </div>
 
         <div class="kpi-grid">
@@ -66,14 +66,13 @@ document.getElementById('periode').textContent = `${mois}/${annee}`;
     } catch (e) { console.error('Services:', e); }
 
     // ── 2. AGENTS ──
-    // Try common agent endpoints. If yours is different, change the URL below.
     const agentUrls = ['/agents/', '/comptes/agents/', '/api/comptes/agents/'];
     for (const url of agentUrls) {
         try {
             const res = await apiJSON(url);
             const agents = res.results || res || [];
             document.getElementById('kpiAgents').textContent = agents.length;
-            break; // stop trying once one works
+            break; 
         } catch (e) { /* try next */ }
     }
 
@@ -85,7 +84,7 @@ document.getElementById('periode').textContent = `${mois}/${annee}`;
     for (const svc of services) {
         const sid = svc.id;
         
-        // Try to fetch decompte for this service/month
+        
         try {
             const dec = await apiJSON(`/decomptes/${sid}/${annee}/${mois}/`);
             const liste = dec.decomptes || dec.results || [];
@@ -101,9 +100,9 @@ document.getElementById('periode').textContent = `${mois}/${annee}`;
                     statut: liste[0]?.statut_validation || 'préparé'
                 });
             }
-        } catch (e) { /* no decompte for this service yet */ }
+        } catch (e) { }
 
-        // Try to fetch planning for this service/month
+        
         try {
             const plan = await apiJSON(`/plannings/${sid}/${annee}/${mois}/`);
             planningsList.push({
@@ -112,10 +111,10 @@ document.getElementById('periode').textContent = `${mois}/${annee}`;
                 mois, annee,
                 statut: plan.statut || 'brouillon'
             });
-        } catch (e) { /* no planning for this service yet */ }
+        } catch (e) { }
     }
 
-    // Update KPIs
+    
     document.getElementById('kpiHeures').textContent = totalHeures.toFixed(1) + ' h';
     document.getElementById('kpiNuit').textContent   = totalNuit.toFixed(1)   + ' h';
 

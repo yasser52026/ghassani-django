@@ -66,3 +66,17 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.email} ({self.role})"
+
+
+class Notification(models.Model):
+    destinataire = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name='notifications')
+    agent_concerne = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name='notifications_le_concernant')
+    message = models.CharField(max_length=255)
+    lue = models.BooleanField(default=False)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.destinataire} — {self.message}"

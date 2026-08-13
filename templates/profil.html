@@ -17,6 +17,23 @@
                 <button class="btn btn-light" id="boutonBasculer" onclick="basculerDisponibilite()"></button>
             </div>
         </div>
+        <div class="card p-4 mb-3" style="max-width:640px;">
+            <h5 class="mb-3">Modifier mes informations</h5>
+            <div id="erreurProfil" class="alert alert-danger" style="display:none;"></div>
+            <div id="succesProfil" class="alert alert-success" style="display:none;"></div>
+            <form id="formProfil">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="mb-3"><label class="form-label">Nom</label><input type="text" id="pNom" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Prénom</label><input type="text" id="pPrenom" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" id="pEmail" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Téléphone</label><input type="text" id="pTelephone" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">RIB</label><input type="text" id="pRib" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Nouveau mot de passe</label><input type="password" id="pMotDePasse" class="form-control" placeholder="Laisser vide pour ne pas changer"></div>
+                </div>
+                <button class="btn btn-primary">Enregistrer les modifications</button>
+            </form>
+        </div>
+
         <div class="card p-3">
             <h5 class="mb-3">Mes heures supplémentaires</h5>
             <table>
@@ -46,6 +63,35 @@ async function basculerDisponibilite() {
     majDisponibilite(data.disponible);
 }
 
+document.getElementById('formProfil').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const erreurDiv = document.getElementById('erreurProfil');
+    const succesDiv = document.getElementById('succesProfil');
+    erreurDiv.style.display = 'none';
+    succesDiv.style.display = 'none';
+
+    const corps = {
+        nom: document.getElementById('pNom').value,
+        prenom: document.getElementById('pPrenom').value,
+        email: document.getElementById('pEmail').value,
+        telephone: document.getElementById('pTelephone').value,
+        rib: document.getElementById('pRib').value,
+    };
+    const motDePasse = document.getElementById('pMotDePasse').value;
+    if (motDePasse) corps.mot_de_passe = motDePasse;
+
+    try {
+        const utilisateur = await apiJSON('/comptes/moi/', { method: 'PATCH', body: JSON.stringify(corps) });
+        document.getElementById('nomComplet').textContent = utilisateur.nom_complet;
+        document.getElementById('pMotDePasse').value = '';
+        succesDiv.textContent = 'Informations mises à jour.';
+        succesDiv.style.display = 'block';
+    } catch (err) {
+        erreurDiv.textContent = err.message || "Une erreur est survenue.";
+        erreurDiv.style.display = 'block';
+    }
+});
+
 (async () => {
     const utilisateur = await chargerLayout('profil');
     if (!utilisateur) return;
@@ -53,6 +99,12 @@ async function basculerDisponibilite() {
     document.getElementById('nomComplet').textContent = utilisateur.nom_complet;
     document.getElementById('sousTitre').textContent = `${utilisateur.matricule} — ${LIBELLES_ROLES[utilisateur.role] || utilisateur.role}`;
     majDisponibilite(utilisateur.disponible);
+
+    document.getElementById('pNom').value = utilisateur.nom;
+    document.getElementById('pPrenom').value = utilisateur.prenom;
+    document.getElementById('pEmail').value = utilisateur.email;
+    document.getElementById('pTelephone').value = utilisateur.telephone || '';
+    document.getElementById('pRib').value = utilisateur.rib || '';
 
     const decomptes = await apiJSON('/decomptes/mes-decomptes/');
     document.getElementById('corpsDecomptes').innerHTML = decomptes.length ? decomptes.map(d => `

@@ -83,41 +83,65 @@ def controler_planning(planning):
 @transaction.atomic
 def generer_rotation(planning):
     """Pré-remplit les gardes vides du planning à partir de l'ordre de rotation
-    de l'équipe du service. Ne touche jamais une garde déjà affectée
-    (les corrections manuelles restent intactes)."""
+    de l'équipe du service. Un même agent ne peut jamais être proposé deux fois
+    le même jour (garde de jour ET de nuit) : chaque date garde la trace des
+    agents déjà retenus, tous postes confondus. Ne touche jamais une garde
+    déjà affectée (les corrections manuelles restent intactes)."""
     equipe = list(
         Equipe.objects.filter(service=planning.service).order_by('ordre').values_list('agent_id', flat=True)
     )
     if not equipe:
         return {'nb_affectations': 0, 'message': "Aucune équipe n'est configurée pour ce service."}
 
-    nb_total = 0
-    for poste in Poste.objects.filter(service=planning.service):
-        etat, _ = EtatRotation.objects.get_or_create(poste=poste)
-        cursor = etat.index_suivant
+    postes = list(Poste.objects.filter(service=planning.service))
+    if not postes:
+        return {'nb_affectations': 0, 'message': "Aucun poste n'est configuré pour ce service."}
 
-        gardes = planning.gardes.filter(poste=poste).order_by('date').prefetch_related('affectations')
-        for garde in gardes:
-            if garde.affectations.exists():
+    etats = {p.id: EtatRotation.objects.get_or_create(poste=p)[0] for p in postes}
+    curseurs = {p.id: etats[p.id].index_suivant for p in postes}
+
+    # agents déjà pris par date, tous postes confondus (préchargé depuis l'existant)
+    deja_pris = defaultdict(set)
+    for a in AffectationGarde.objects.filter(garde__planning=planning).select_related('garde'):
+        deja_pris[a.garde.date].add(a.agent_id)
+
+    gardes_par_poste = {
+        p.id: {g.date: g for g in planning.gardes.filter(poste=p).prefetch_related('affectations')}
+        for p in postes
+    }
+    toutes_dates = sorted({d for gardes in gardes_par_poste.values() for d in gardes.keys()})
+
+    nb_total = 0
+    for une_date in toutes_dates:
+        for poste in postes:
+            garde = gardes_par_poste[poste.id].get(une_date)
+            if not garde or garde.affectations.exists():
                 continue
 
             effectif = poste.effectif_attendu
+            cursor = curseurs[poste.id]
             retenus = []
             essais = 0
             i = cursor
             while len(retenus) < effectif and essais < len(equipe) * 2:
                 agent_id = equipe[i % len(equipe)]
-                if agent_id not in retenus and not agent_est_absent(agent_id, garde.date):
+                if (
+                    agent_id not in retenus
+                    and agent_id not in deja_pris[une_date]
+                    and not agent_est_absent(agent_id, une_date)
+                ):
                     retenus.append(agent_id)
                 i += 1
                 essais += 1
 
             for agent_id in retenus:
                 AffectationGarde.objects.create(garde=garde, agent_id=agent_id)
+                deja_pris[une_date].add(agent_id)
             nb_total += len(retenus)
-            cursor = (cursor + effectif) % len(equipe)
+            curseurs[poste.id] = (cursor + effectif) % len(equipe)
 
-        etat.index_suivant = cursor
-        etat.save()
+    for poste in postes:
+        etats[poste.id].index_suivant = curseurs[poste.id]
+        etats[poste.id].save()
 
     return {'nb_affectations': nb_total, 'message': None}

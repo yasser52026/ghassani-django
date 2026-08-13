@@ -31,7 +31,7 @@ async function chargerLayout(pageActive) {
         liens.push({ href: '/agents.html', texte: 'Agents', cle: 'agents' });
     }
     if (peutVoirDemandes) liens.push({ href: '/demandes.html', texte: 'Demandes', cle: 'demandes' });
-    iif (['administrateur', 'directeur', 'gestionnaire', 'chef_service'].includes(utilisateur.role)) {
+    if (['administrateur', 'directeur', 'gestionnaire', 'chef_service'].includes(utilisateur.role)) {
         liens.push({ href: '/tableau-bord.html', texte: 'Tableau de bord', cle: 'tableau-bord' });
     }
     if (['administrateur', 'directeur'].includes(utilisateur.role)) {
@@ -52,5 +52,40 @@ async function chargerLayout(pageActive) {
             </div>
         </nav>
     `;
+
+    if (['administrateur', 'gestionnaire', 'directeur', 'chef_service'].includes(utilisateur.role)) {
+        verifierNotifications();
+        setInterval(verifierNotifications, 30000);
+    }
+
     return utilisateur;
+}
+
+async function verifierNotifications() {
+    let notifications;
+    try {
+        notifications = await apiJSON('/comptes/notifications/');
+    } catch {
+        return;
+    }
+    if (!notifications || !notifications.length) return;
+
+    const existant = document.getElementById('popupNotifications');
+    if (existant) existant.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'popupNotifications';
+    popup.className = 'popup-notifications-overlay';
+    popup.innerHTML = `
+        <div class="popup-notifications-carte">
+            <h5>Indisponibilité déclarée</h5>
+            <ul>${notifications.map(n => `<li>${n.message}</li>`).join('')}</ul>
+            <button class="btn btn-primary" id="boutonFermerNotifications">OK</button>
+        </div>
+    `;
+    document.body.appendChild(popup);
+    document.getElementById('boutonFermerNotifications').addEventListener('click', async () => {
+        popup.remove();
+        try { await apiJSON('/comptes/notifications/lues/', { method: 'POST' }); } catch {}
+    });
 }

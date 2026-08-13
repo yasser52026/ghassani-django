@@ -84,4 +84,32 @@ td { padding: 0.5rem; border-bottom: 1px solid var(--gris-bordure); }
 
 .chips-container { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 3px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--bleu-clair); color: var(--bleu-nuit); border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; font-weight: 500; }
+
+.popup-notifications-overlay { position: fixed; inset: 0; background: rgba(10,20,35,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.popup-notifications-carte { background: white; border-radius: var(--rayon); padding: 1.5rem 1.75rem; max-width: 420px; width: 90%; box-shadow: var(--ombre); }
+.popup-notifications-carte h5 { margin-bottom: 0.75rem; color: var(--rouge); }
+.popup-notifications-carte ul { margin: 0 0 1rem 0; padding-left: 1.2rem; font-size: 0.9rem; }
+.popup-notifications-carte ul li { margin-bottom: 0.3rem; }
+
+.entete-impression { display: none; }
+
+@media print {
+    @page { size: A4 landscape; margin: 1cm; }
+    body * { visibility: hidden; }
+    .sidebar, .page-header, #zoneAlertes, .page-header-actions { display: none !important; }
+    .entete-impression, .entete-impression *, .card, .card *, #tableGrille, #tableGrille * { visibility: visible; }
+    .contenu-principal { padding: 0; }
+    .entete-impression {
+        display: block; text-align: center; margin-bottom: 0.8cm;
+    }
+    .entete-impression h2 { font-size: 1rem; margin-bottom: 0.2cm; }
+    .entete-impression h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.6cm; }
+    .zone-visas { display: flex; justify-content: space-between; margin-top: 1.2cm; font-size: 0.8rem; }
+    .zone-visas div { border-top: 1px solid #000; padding-top: 0.2cm; width: 30%; text-align: center; }
+    .card { border: none; box-shadow: none; }
+    table, th, td { border: 1px solid #000 !important; }
+    .chip-remove, .agent-input { display: none !important; }
+    .chip { background: none; border: none; padding: 0; color: #000; }
+    tr { page-break-inside: avoid; }
+}
 .chip button { border: none; background: none; color: var(--rouge); cursor: pointer; }

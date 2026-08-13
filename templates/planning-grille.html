@@ -17,16 +17,22 @@
     <button class="btn btn-outline-light" onclick="genererRotation()">Générer la rotation</button>
     <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
     <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
+    <button class="btn btn-outline-light" onclick="window.print()">Imprimer</button>
 </div>
             </div>
         </div>
         <div id="zoneAlertes"></div>
         <datalist id="listeAgents"></datalist>
+        <div id="entetePourImpression" class="entete-impression">
+            <h2>Centre Hospitalier Régional de Fès — Hôpital Al Ghassani</h2>
+            <h3 id="titreImpression"></h3>
+        </div>
         <div class="card p-3">
             <div style="overflow-x:auto;">
                 <table id="tableGrille" style="font-size:0.85rem;">
                     <thead></thead>
                     <tbody></tbody>
+                    <tfoot id="piedImpression"></tfoot>
                 </table>
             </div>
         </div>
@@ -94,6 +100,7 @@ async function chargerGrille() {
     const service = await apiJSON(`/services/${serviceId}/`);
     document.getElementById('titreService').textContent = service.nom;
     document.getElementById('sousTitre').textContent = `${data.planning.mois_libelle || mois}/${annee} — statut : ${data.planning.statut}`;
+    document.getElementById('titreImpression').textContent = `Planning de garde — ${service.nom} — ${data.planning.mois_libelle || mois}/${annee}`;
 
     agentsMap = {};
     data.agents_du_service.forEach(a => agentsMap[a.nom_complet] = a.id);
@@ -114,6 +121,16 @@ async function chargerGrille() {
     thead.innerHTML = `<tr><th style="width:70px;">Jour</th>${data.postes.map(p =>
         `<th>${p.type_vacation === 'jour' ? 'Garde de jour' : 'Garde de nuit'}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small></th>`
     ).join('')}</tr>`;
+
+    document.getElementById('piedImpression').innerHTML = `
+        <tr><td colspan="${data.postes.length + 1}">
+            <div class="zone-visas">
+                <div><span>Visa Chef de service</span></div>
+                <div><span>Visa Directeur</span></div>
+                <div><span>Cachet de l'administration</span></div>
+            </div>
+        </td></tr>
+    `;
 
     const tbody = document.querySelector('#tableGrille tbody');
     tbody.innerHTML = data.jours.map(j => `

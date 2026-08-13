@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import Service, Poste, Equipe
 
-
 class PosteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Poste

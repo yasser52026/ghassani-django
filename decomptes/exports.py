@@ -18,15 +18,23 @@ ENTETE_FONT = Font(color="FFFFFF", bold=True)
 
 
 def exporter_decomptes_excel(service, annee, mois, decomptes):
+    decomptes = list(decomptes)
+    afficher_ramadan = any(d.heures_ramadan for d in decomptes)
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Décompte"
-    ws.merge_cells("A1:I1")
+
+    entetes = ["Matricule", "Nom", "Prénom", "Ouvrable", "Vendredi"]
+    if afficher_ramadan:
+        entetes.append("Ramadan")
+    entetes += ["Week-end/férié", "Nuit", "Total"]
+
+    ws.merge_cells(f"A1:{get_column_letter(len(entetes))}1")
     ws["A1"] = f"Décompte des heures supplémentaires — {service.nom} — {MOIS_FR[mois]} {annee}"
     ws["A1"].font = Font(bold=True, size=14)
     ws["A1"].alignment = Alignment(horizontal="center")
 
-    entetes = ["Matricule", "Nom", "Prénom", "Ouvrable", "Vendredi", "Ramadan", "Week-end/férié", "Nuit", "Total"]
     ws.append([])
     ws.append(entetes)
     for col_idx, _ in enumerate(entetes, start=1):
@@ -37,17 +45,19 @@ def exporter_decomptes_excel(service, annee, mois, decomptes):
 
     total = 0.0
     for d in decomptes:
-        ws.append([
-            d.agent.matricule, d.agent.nom, d.agent.prenom,
-            d.heures_ouvrable, d.heures_vendredi, d.heures_ramadan,
-            d.heures_weekend_ferie, d.heures_nuit, d.total_heures,
-        ])
+        ligne = [d.agent.matricule, d.agent.nom, d.agent.prenom, d.heures_ouvrable, d.heures_vendredi]
+        if afficher_ramadan:
+            ligne.append(d.heures_ramadan or None)
+        ligne += [d.heures_weekend_ferie, d.heures_nuit, d.total_heures]
+        ws.append(ligne)
         total += d.total_heures
 
-    ligne = ws.max_row + 1
-    ws.cell(row=ligne, column=3, value="TOTAL").font = Font(bold=True)
-    ws.cell(row=ligne, column=9, value=total).font = Font(bold=True)
-    for idx, largeur in enumerate([14, 16, 16, 12, 12, 12, 16, 10, 12], start=1):
+    ligne_num = ws.max_row + 1
+    ws.cell(row=ligne_num, column=3, value="TOTAL").font = Font(bold=True)
+    ws.cell(row=ligne_num, column=len(entetes), value=total).font = Font(bold=True)
+
+    largeurs = [14, 16, 16, 12, 12] + ([12] if afficher_ramadan else []) + [16, 10, 12]
+    for idx, largeur in enumerate(largeurs, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = largeur
 
     tampon = io.BytesIO()
@@ -57,6 +67,9 @@ def exporter_decomptes_excel(service, annee, mois, decomptes):
 
 
 def exporter_decomptes_pdf(service, annee, mois, decomptes):
+    decomptes = list(decomptes)
+    afficher_ramadan = any(d.heures_ramadan for d in decomptes)
+
     tampon = io.BytesIO()
     doc = SimpleDocTemplate(tampon, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
     styles = getSampleStyleSheet()
@@ -69,18 +82,27 @@ def exporter_decomptes_pdf(service, annee, mois, decomptes):
         Spacer(1, 0.8*cm),
     ]
 
-    donnees = [["Matricule", "Nom et prénom", "Ouvrable", "Vendredi", "Ramadan", "W-E/férié", "Nuit", "Total"]]
+    entetes = ["Matricule", "Nom et prénom", "Ouvrable", "Vendredi"]
+    if afficher_ramadan:
+        entetes.append("Ramadan")
+    entetes += ["W-E/férié", "Nuit", "Total"]
+
+    donnees = [entetes]
     total = 0.0
     for d in decomptes:
-        donnees.append([
-            d.agent.matricule, d.agent.nom_complet,
-            f"{d.heures_ouvrable:g}", f"{d.heures_vendredi:g}", f"{d.heures_ramadan:g}",
-            f"{d.heures_weekend_ferie:g}", f"{d.heures_nuit:g}", f"{d.total_heures:g}",
-        ])
+        ligne = [d.agent.matricule, d.agent.nom_complet, f"{d.heures_ouvrable:g}", f"{d.heures_vendredi:g}"]
+        if afficher_ramadan:
+            ligne.append(f"{d.heures_ramadan:g}" if d.heures_ramadan else "")
+        ligne += [f"{d.heures_weekend_ferie:g}", f"{d.heures_nuit:g}", f"{d.total_heures:g}"]
+        donnees.append(ligne)
         total += d.total_heures
-    donnees.append(["", "TOTAL", "", "", "", "", "", f"{total:g}"])
 
-    table = Table(donnees, repeatRows=1, colWidths=[2.3*cm, 4.5*cm, 2*cm, 2*cm, 2*cm, 2.2*cm, 1.8*cm, 2*cm])
+    ligne_total = ["", "TOTAL"] + [""] * (len(entetes) - 3) + [f"{total:g}"]
+    donnees.append(ligne_total)
+
+    largeurs = [2.3*cm, 4.5*cm, 2*cm, 2*cm] + ([2*cm] if afficher_ramadan else []) + [2.2*cm, 1.8*cm, 2*cm]
+
+    table = Table(donnees, repeatRows=1, colWidths=largeurs)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),

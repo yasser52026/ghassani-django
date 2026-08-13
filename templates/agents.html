@@ -86,6 +86,8 @@ function fermerFormulaire() {
     document.getElementById('formAgent').reset();
 }
 
+let peutSupprimer = false;
+
 async function chargerAgents() {
     const agents = await apiJSON('/comptes/agents/');
     document.getElementById('corpsAgents').innerHTML = agents.map(a => {
@@ -95,9 +97,22 @@ async function chargerAgents() {
             <td>${a.matricule}</td><td>${a.nom_complet}</td><td>${a.email}</td>
             <td>${LIBELLES_ROLES[a.role] || a.role}</td><td>${service ? service.nom : '—'}</td>
             <td><span class="badge">${a.disponible ? 'disponible' : 'indisponible'}</span></td>
-            <td><button class="btn btn-sm btn-outline-danger" onclick='ouvrirFormulaire(${JSON.stringify(a)})'>Modifier</button></td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick='ouvrirFormulaire(${JSON.stringify(a)})'>Modifier</button>
+                ${peutSupprimer ? `<button class="btn btn-sm btn-danger" onclick="supprimerAgent(${a.id}, '${a.nom_complet.replace(/'/g, "\\'")}')">Supprimer</button>` : ''}
+            </td>
         </tr>`;
     }).join('');
+}
+
+async function supprimerAgent(id, nomComplet) {
+    if (!confirm(`Supprimer le compte de ${nomComplet} ? Cette action est irréversible.`)) return;
+    try {
+        await apiJSON(`/comptes/agents/${id}/`, { method: 'DELETE' });
+        chargerAgents();
+    } catch (err) {
+        alert(err.message || "Suppression impossible.");
+    }
 }
 
 document.getElementById('formAgent').addEventListener('submit', async (e) => {
@@ -133,6 +148,7 @@ document.getElementById('formAgent').addEventListener('submit', async (e) => {
     if (['administrateur', 'gestionnaire'].includes(utilisateur.role)) {
         document.getElementById('zoneActionsAdmin').style.display = 'flex';
     }
+    peutSupprimer = ['administrateur', 'gestionnaire', 'chef_service'].includes(utilisateur.role);
     services = await apiJSON('/services/');
     document.getElementById('serviceId').innerHTML += services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
     chargerAgents();
