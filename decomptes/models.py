@@ -4,6 +4,7 @@ from django.db import models
 class Decompte(models.Model):
     agent = models.ForeignKey('comptes.Utilisateur', on_delete=models.CASCADE, related_name='decomptes')
     service = models.ForeignKey('referentiels.Service', on_delete=models.CASCADE)
+    type_activite = models.CharField(max_length=15, default='garde')
     annee = models.IntegerField()
     mois = models.IntegerField()
 
@@ -17,7 +18,7 @@ class Decompte(models.Model):
     statut_validation = models.CharField(max_length=20, default='prepare')
 
     class Meta:
-        unique_together = ('agent', 'annee', 'mois', 'service')
+        unique_together = ('agent', 'annee', 'mois', 'service', 'type_activite')
 
 
 class JournalAudit(models.Model):

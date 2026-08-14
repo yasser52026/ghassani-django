@@ -18,6 +18,7 @@ class PeriodeRamadan(models.Model):
 
 
 class Bareme(models.Model):
+    type_activite = models.CharField(max_length=15, default="garde")
     type_vacation = models.CharField(max_length=10)
     categorie_jour = models.CharField(max_length=20)
     heures = models.FloatField()

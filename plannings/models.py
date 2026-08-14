@@ -3,12 +3,13 @@ from django.db import models
 
 class Planning(models.Model):
     service = models.ForeignKey('referentiels.Service', on_delete=models.CASCADE, related_name='plannings')
+    type_activite = models.CharField(max_length=15, default='garde')
     annee = models.IntegerField()
     mois = models.IntegerField()
     statut = models.CharField(max_length=20, default='brouillon')
 
     class Meta:
-        unique_together = ('service', 'annee', 'mois')
+        unique_together = ('service', 'type_activite', 'annee', 'mois')
 
 
 class Garde(models.Model):

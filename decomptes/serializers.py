@@ -15,7 +15,7 @@ class DecompteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Decompte
         fields = [
-            'id', 'agent', 'agent_matricule', 'agent_nom', 'service', 'annee', 'mois',
+            'id', 'agent', 'agent_matricule', 'agent_nom', 'service', 'type_activite', 'annee', 'mois',
             'heures_ouvrable', 'heures_vendredi', 'heures_ramadan',
             'heures_weekend_ferie', 'heures_nuit', 'total_heures', 'statut_validation',
         ]

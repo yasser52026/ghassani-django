@@ -13,25 +13,32 @@ from reportlab.lib.enums import TA_CENTER
 MOIS_FR = ["", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
 
+LIBELLES_TYPE = {"garde": "Garde", "permanence": "Permanence"}
+
 ENTETE_FILL = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
 ENTETE_FONT = Font(color="FFFFFF", bold=True)
 
 
-def exporter_decomptes_excel(service, annee, mois, decomptes):
+def exporter_decomptes_excel(service, annee, mois, decomptes, type_activite="garde"):
     decomptes = list(decomptes)
-    afficher_ramadan = any(d.heures_ramadan for d in decomptes)
+    est_permanence = type_activite == "permanence"
+    afficher_ramadan = (not est_permanence) and any(d.heures_ramadan for d in decomptes)
+    libelle_type = LIBELLES_TYPE.get(type_activite, type_activite)
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Décompte"
 
-    entetes = ["Matricule", "Nom", "Prénom", "Ouvrable", "Vendredi"]
-    if afficher_ramadan:
-        entetes.append("Ramadan")
-    entetes += ["Week-end/férié", "Nuit", "Total"]
+    if est_permanence:
+        entetes = ["Matricule", "Nom", "Prénom", "Ouvrable", "Férié", "Total"]
+    else:
+        entetes = ["Matricule", "Nom", "Prénom", "Ouvrable", "Vendredi"]
+        if afficher_ramadan:
+            entetes.append("Ramadan")
+        entetes += ["Week-end/férié", "Nuit", "Total"]
 
     ws.merge_cells(f"A1:{get_column_letter(len(entetes))}1")
-    ws["A1"] = f"Décompte des heures supplémentaires — {service.nom} — {MOIS_FR[mois]} {annee}"
+    ws["A1"] = f"Décompte des heures {libelle_type.lower()} — {service.nom} — {MOIS_FR[mois]} {annee}"
     ws["A1"].font = Font(bold=True, size=14)
     ws["A1"].alignment = Alignment(horizontal="center")
 
@@ -45,10 +52,13 @@ def exporter_decomptes_excel(service, annee, mois, decomptes):
 
     total = 0.0
     for d in decomptes:
-        ligne = [d.agent.matricule, d.agent.nom, d.agent.prenom, d.heures_ouvrable, d.heures_vendredi]
-        if afficher_ramadan:
-            ligne.append(d.heures_ramadan or None)
-        ligne += [d.heures_weekend_ferie, d.heures_nuit, d.total_heures]
+        if est_permanence:
+            ligne = [d.agent.matricule, d.agent.nom, d.agent.prenom, d.heures_ouvrable, d.heures_weekend_ferie, d.total_heures]
+        else:
+            ligne = [d.agent.matricule, d.agent.nom, d.agent.prenom, d.heures_ouvrable, d.heures_vendredi]
+            if afficher_ramadan:
+                ligne.append(d.heures_ramadan or None)
+            ligne += [d.heures_weekend_ferie, d.heures_nuit, d.total_heures]
         ws.append(ligne)
         total += d.total_heures
 
@@ -56,7 +66,10 @@ def exporter_decomptes_excel(service, annee, mois, decomptes):
     ws.cell(row=ligne_num, column=3, value="TOTAL").font = Font(bold=True)
     ws.cell(row=ligne_num, column=len(entetes), value=total).font = Font(bold=True)
 
-    largeurs = [14, 16, 16, 12, 12] + ([12] if afficher_ramadan else []) + [16, 10, 12]
+    if est_permanence:
+        largeurs = [14, 16, 16, 12, 12, 12]
+    else:
+        largeurs = [14, 16, 16, 12, 12] + ([12] if afficher_ramadan else []) + [16, 10, 12]
     for idx, largeur in enumerate(largeurs, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = largeur
 
@@ -66,9 +79,11 @@ def exporter_decomptes_excel(service, annee, mois, decomptes):
     return tampon
 
 
-def exporter_decomptes_pdf(service, annee, mois, decomptes):
+def exporter_decomptes_pdf(service, annee, mois, decomptes, type_activite="garde"):
     decomptes = list(decomptes)
-    afficher_ramadan = any(d.heures_ramadan for d in decomptes)
+    est_permanence = type_activite == "permanence"
+    afficher_ramadan = (not est_permanence) and any(d.heures_ramadan for d in decomptes)
+    libelle_type = LIBELLES_TYPE.get(type_activite, type_activite)
 
     tampon = io.BytesIO()
     doc = SimpleDocTemplate(tampon, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
@@ -78,29 +93,38 @@ def exporter_decomptes_pdf(service, annee, mois, decomptes):
 
     elements = [
         Paragraph("CHR de Fès — Hôpital Al Ghassani", style_sous),
-        Paragraph(f"Bordereau des heures supplémentaires — {service.nom}<br/>{MOIS_FR[mois]} {annee}", style_titre),
+        Paragraph(f"Bordereau des heures de {libelle_type.lower()} — {service.nom}<br/>{MOIS_FR[mois]} {annee}", style_titre),
         Spacer(1, 0.8*cm),
     ]
 
-    entetes = ["Matricule", "Nom et prénom", "Ouvrable", "Vendredi"]
-    if afficher_ramadan:
-        entetes.append("Ramadan")
-    entetes += ["W-E/férié", "Nuit", "Total"]
+    if est_permanence:
+        entetes = ["Matricule", "Nom et prénom", "Ouvrable", "Férié", "Total"]
+    else:
+        entetes = ["Matricule", "Nom et prénom", "Ouvrable", "Vendredi"]
+        if afficher_ramadan:
+            entetes.append("Ramadan")
+        entetes += ["W-E/férié", "Nuit", "Total"]
 
     donnees = [entetes]
     total = 0.0
     for d in decomptes:
-        ligne = [d.agent.matricule, d.agent.nom_complet, f"{d.heures_ouvrable:g}", f"{d.heures_vendredi:g}"]
-        if afficher_ramadan:
-            ligne.append(f"{d.heures_ramadan:g}" if d.heures_ramadan else "")
-        ligne += [f"{d.heures_weekend_ferie:g}", f"{d.heures_nuit:g}", f"{d.total_heures:g}"]
+        if est_permanence:
+            ligne = [d.agent.matricule, d.agent.nom_complet, f"{d.heures_ouvrable:g}", f"{d.heures_weekend_ferie:g}", f"{d.total_heures:g}"]
+        else:
+            ligne = [d.agent.matricule, d.agent.nom_complet, f"{d.heures_ouvrable:g}", f"{d.heures_vendredi:g}"]
+            if afficher_ramadan:
+                ligne.append(f"{d.heures_ramadan:g}" if d.heures_ramadan else "")
+            ligne += [f"{d.heures_weekend_ferie:g}", f"{d.heures_nuit:g}", f"{d.total_heures:g}"]
         donnees.append(ligne)
         total += d.total_heures
 
     ligne_total = ["", "TOTAL"] + [""] * (len(entetes) - 3) + [f"{total:g}"]
     donnees.append(ligne_total)
 
-    largeurs = [2.3*cm, 4.5*cm, 2*cm, 2*cm] + ([2*cm] if afficher_ramadan else []) + [2.2*cm, 1.8*cm, 2*cm]
+    if est_permanence:
+        largeurs = [2.6*cm, 6*cm, 2.5*cm, 2.5*cm, 2.5*cm]
+    else:
+        largeurs = [2.3*cm, 4.5*cm, 2*cm, 2*cm] + ([2*cm] if afficher_ramadan else []) + [2.2*cm, 1.8*cm, 2*cm]
 
     table = Table(donnees, repeatRows=1, colWidths=largeurs)
     table.setStyle(TableStyle([

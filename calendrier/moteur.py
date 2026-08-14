@@ -16,10 +16,19 @@ def categorie_du_jour(une_date, jours_weekend=(5, 6)):
     return CATEGORIE_RAMADAN if est_ramadan else CATEGORIE_OUVRABLE
 
 
-def heures_bareme(type_vacation, categorie_jour, a_la_date):
+def categorie_du_jour_permanence(une_date, jours_weekend=(5, 6)):
+    """La permanence ne distingue que jour ouvrable / jour férié (week-end ou jour
+    férié) — contrairement à la garde, vendredi et ramadan comptent comme ouvrable."""
+    est_ferie = JourFerie.objects.filter(date=une_date).exists()
+    est_weekend = une_date.weekday() in jours_weekend
+    return CATEGORIE_WEEKEND_FERIE if (est_weekend or est_ferie) else CATEGORIE_OUVRABLE
+
+
+def heures_bareme(type_vacation, categorie_jour, a_la_date, type_activite="garde"):
     ligne = (
         Bareme.objects.filter(
-            type_vacation=type_vacation, categorie_jour=categorie_jour, date_effet__lte=a_la_date
+            type_activite=type_activite, type_vacation=type_vacation,
+            categorie_jour=categorie_jour, date_effet__lte=a_la_date,
         ).order_by('-date_effet').first()
     )
     return ligne.heures if ligne else 0.0
