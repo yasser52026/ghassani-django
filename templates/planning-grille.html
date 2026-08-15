@@ -11,17 +11,23 @@
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2 id="titreService">...</h2><p id="sousTitre"></p></div>
+            <div>
+                <h2 id="titreService">...</h2>
+                <p id="sousTitre"></p>
+                <div style="margin-top:0.5rem;display:flex;gap:0.5rem;">
+                    <button type="button" class="btn btn-sm btn-outline-light" id="ongletGarde" onclick="changerType('garde')">Garde</button>
+                    <button type="button" class="btn btn-sm btn-outline-light" id="ongletPermanence" onclick="changerType('permanence')">Permanence</button>
+                </div>
+            </div>
             <div class="page-header-actions">
-                <div class="page-header-actions">
-    <button class="btn btn-outline-light" onclick="genererRotation()">Générer la rotation</button>
-    <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
-    <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
-    <button class="btn btn-outline-light" onclick="window.print()">Imprimer</button>
-</div>
+                <button class="btn btn-outline-light" onclick="genererRotation()">Générer la rotation</button>
+                <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
+                <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
+                <button class="btn btn-outline-light" onclick="window.print()">Imprimer</button>
             </div>
         </div>
         <div id="zoneAlertes"></div>
+        <div id="zonePlafond"></div>
         <datalist id="listeAgents"></datalist>
         <div id="entetePourImpression" class="entete-impression">
             <h2>Centre Hospitalier Régional de Fès — Hôpital Al Ghassani</h2>
@@ -45,8 +51,18 @@ const params = new URLSearchParams(window.location.search);
 const serviceId = params.get('service_id');
 const annee = params.get('annee');
 const mois = params.get('mois');
+let typeActivite = params.get('type') === 'permanence' ? 'permanence' : 'garde';
 let planningId = null;
 let agentsMap = {};
+
+function changerType(type) {
+    window.location.href = `/planning-grille.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${type}`;
+}
+
+function majOnglets() {
+    document.getElementById('ongletGarde').className = typeActivite === 'garde' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
+    document.getElementById('ongletPermanence').className = typeActivite === 'permanence' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
+}
 
 function attacherSuppression(chip) {
     chip.querySelector('.chip-remove').addEventListener('click', () => chip.remove());
@@ -93,33 +109,53 @@ function activerCellules() {
 }
 
 async function chargerGrille() {
-    const data = await apiJSON(`/plannings/${serviceId}/${annee}/${mois}/`);
+    majOnglets();
+    const data = await apiJSON(`/plannings/${serviceId}/${annee}/${mois}/?type=${typeActivite}`);
     planningId = data.planning.id;
 
-    document.getElementById('titreService').textContent = data.planning.mois_libelle ? '' : '';
     const service = await apiJSON(`/services/${serviceId}/`);
+    const libelleType = typeActivite === 'permanence' ? 'Permanence' : 'Garde';
     document.getElementById('titreService').textContent = service.nom;
-    document.getElementById('sousTitre').textContent = `${data.planning.mois_libelle || mois}/${annee} — statut : ${data.planning.statut}`;
-    document.getElementById('titreImpression').textContent = `Planning de garde — ${service.nom} — ${data.planning.mois_libelle || mois}/${annee}`;
+    document.getElementById('sousTitre').textContent = `${libelleType} — ${data.planning.mois_libelle || mois}/${annee} — statut : ${data.planning.statut}`;
+    document.getElementById('titreImpression').textContent = `Planning de ${libelleType.toLowerCase()} — ${service.nom} — ${data.planning.mois_libelle || mois}/${annee}`;
+    document.title = `Planning ${libelleType} - ${service.nom} - ${data.planning.mois_libelle || mois}-${annee}`;
 
     agentsMap = {};
     data.agents_du_service.forEach(a => agentsMap[a.nom_complet] = a.id);
     document.getElementById('listeAgents').innerHTML = data.agents_du_service.map(a => `<option value="${a.nom_complet}">`).join('');
 
-   
-        document.getElementById('zoneAlertes').innerHTML = data.alertes.length ? `
+    document.getElementById('zoneAlertes').innerHTML = data.alertes.length ? `
         <div class="alert alert-warning">
             <strong>${data.alertes.length} alerte(s) :</strong>
             <ul style="margin:0;">${data.alertes.slice(0, 8).map(a => `<li>${a.message}</li>`).join('')}</ul>
         </div>` : '';
-    
+
+    if (data.plafond_permanence) {
+        const lignes = Object.entries(data.heures_permanence_par_agent || {})
+            .map(([agentId, heures]) => ({ agentId, heures, nom: (data.agents_du_service.find(a => a.id == agentId) || {}).nom_complet || agentId }))
+            .filter(l => l.heures > 0)
+            .sort((a, b) => b.heures - a.heures);
+        if (lignes.length) {
+            document.getElementById('zonePlafond').innerHTML = `
+                <div class="alert alert-info" style="font-size:0.85rem;">
+                    <strong>Heures de permanence affectées ce mois (plafond ${data.plafond_permanence} h) :</strong>
+                    <ul style="margin:4px 0 0;columns:2;">
+                        ${lignes.map(l => `<li style="${l.heures >= data.plafond_permanence ? 'color:#b00020;font-weight:600;' : ''}">${l.nom} — ${l.heures} h</li>`).join('')}
+                    </ul>
+                </div>`;
+        } else {
+            document.getElementById('zonePlafond').innerHTML = '';
+        }
+    } else {
+        document.getElementById('zonePlafond').innerHTML = '';
+    }
 
     const gardesParCle = {};
     data.gardes.forEach(g => gardesParCle[`${g.jour}-${g.poste_id}`] = g);
 
     const thead = document.querySelector('#tableGrille thead');
     thead.innerHTML = `<tr><th style="width:70px;">Jour</th>${data.postes.map(p =>
-        `<th>${p.type_vacation === 'jour' ? 'Garde de jour' : 'Garde de nuit'}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small></th>`
+        `<th>${libelleType} de ${p.type_vacation === 'jour' ? 'jour' : 'nuit'}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small></th>`
     ).join('')}</tr>`;
 
     document.getElementById('piedImpression').innerHTML = `
@@ -143,6 +179,11 @@ async function chargerGrille() {
         </tr>
     `).join('');
 
+    if (!data.postes.length) {
+        document.getElementById('zoneAlertes').innerHTML += `
+            <div class="alert alert-warning">Aucun poste de type « ${libelleType.toLowerCase()} » n'est configuré pour ce service. Ajoutez-en depuis la fiche du service.</div>`;
+    }
+
     activerCellules();
 }
 
@@ -152,16 +193,19 @@ async function enregistrerGrille() {
         const agentIds = Array.from(cel.querySelectorAll('.chip')).map(c => parseInt(c.dataset.agentId));
         gardesData.push({ garde_id: parseInt(cel.dataset.gardeId), agent_ids: agentIds });
     });
-    await apiJSON(`/plannings/${planningId}/enregistrer/`, {
+    const resultat = await apiJSON(`/plannings/${planningId}/enregistrer/`, {
         method: 'POST',
         body: JSON.stringify({ gardes: gardesData }),
     });
+    if (resultat && resultat.agents_bloques && resultat.agents_bloques.length) {
+        alert(resultat.detail);
+    }
     chargerGrille();
 }
 
 async function calculerHeures() {
     await apiJSON(`/plannings/${planningId}/calculer/`, { method: 'POST' });
-    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}`;
+    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${typeActivite}`;
 }
 
 (async () => {

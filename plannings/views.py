@@ -196,3 +196,36 @@ class CalculerView(APIView):
             return Response(status=403)
         enregistrer_decomptes(planning)
         return Response({'detail': 'Décompte calculé.'})
+
+
+JOURS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+LIBELLES_TYPE = {TYPE_GARDE: "Garde", TYPE_PERMANENCE: "Permanence"}
+
+
+class MesGardesView(APIView):
+    """Liste des prochaines gardes/permanences de l'utilisateur connecté,
+    destinée à un usage personnel (rôle consultation notamment)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date, timedelta
+        aujourdhui = date.today()
+        limite = aujourdhui + timedelta(days=60)
+
+        affectations = (
+            AffectationGarde.objects.filter(agent=request.user, garde__date__gte=aujourdhui, garde__date__lte=limite)
+            .select_related('garde__poste__service', 'garde__planning')
+            .order_by('garde__date')
+        )
+
+        resultats = [{
+            'date': str(a.garde.date),
+            'jour_semaine': JOURS_FR[a.garde.date.weekday()],
+            'service': a.garde.poste.service.nom,
+            'type_activite': LIBELLES_TYPE.get(a.garde.planning.type_activite, a.garde.planning.type_activite),
+            'type_vacation': 'Jour' if a.garde.poste.type_vacation == 'jour' else 'Nuit',
+            'heure_debut': str(a.garde.poste.heure_debut)[:5],
+            'heure_fin': str(a.garde.poste.heure_fin)[:5],
+        } for a in affectations]
+
+        return Response(resultats)

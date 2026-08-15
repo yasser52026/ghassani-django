@@ -11,7 +11,14 @@
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2 id="titreService">Décompte</h2><p id="sousTitre"></p></div>
+            <div>
+                <h2 id="titreService">Décompte</h2>
+                <p id="sousTitre"></p>
+                <div style="margin-top:0.5rem;display:flex;gap:0.5rem;">
+                    <button type="button" class="btn btn-sm btn-outline-light" id="ongletGarde" onclick="changerType('garde')">Garde</button>
+                    <button type="button" class="btn btn-sm btn-outline-light" id="ongletPermanence" onclick="changerType('permanence')">Permanence</button>
+                </div>
+            </div>
             <div class="page-header-actions">
                 <button id="boutonExcel" class="btn btn-outline-light" onclick="telechargerExport('excel')">Export Excel</button>
                 <button id="boutonPdf" class="btn btn-outline-light" onclick="telechargerExport('pdf')">Bordereau PDF</button>
@@ -20,13 +27,7 @@
         </div>
         <div class="card p-3">
             <table>
-                <thead>
-                    <tr>
-                        <th>Matricule</th><th>Nom et prénom</th>
-                        <th>Ouvrable</th><th>Vendredi</th><th>Ramadan</th><th>Week-end/férié</th>
-                        <th>Nuit</th><th>Total</th><th>Statut</th>
-                    </tr>
-                </thead>
+                <thead id="enteteTable"></thead>
                 <tbody id="corpsDecompte"></tbody>
             </table>
         </div>
@@ -39,16 +40,45 @@ const params = new URLSearchParams(window.location.search);
 const serviceId = params.get('service_id');
 const annee = params.get('annee');
 const mois = params.get('mois');
+let typeActivite = params.get('type') === 'permanence' ? 'permanence' : 'garde';
+
+function changerType(type) {
+    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${type}`;
+}
+
+function majOnglets() {
+    document.getElementById('ongletGarde').className = typeActivite === 'garde' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
+    document.getElementById('ongletPermanence').className = typeActivite === 'permanence' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
+}
 
 async function chargerDecompte() {
+    majOnglets();
+    const estPermanence = typeActivite === 'permanence';
+    const libelleType = estPermanence ? 'Permanence' : 'Garde';
+
     const service = await apiJSON(`/services/${serviceId}/`);
-    document.getElementById('titreService').textContent = `Décompte — ${service.nom}`;
+    document.getElementById('titreService').textContent = `Décompte de ${libelleType.toLowerCase()} — ${service.nom}`;
     document.getElementById('sousTitre').textContent = `${mois}/${annee}`;
 
-    const data = await apiJSON(`/decomptes/${serviceId}/${annee}/${mois}/`);
+    document.getElementById('enteteTable').innerHTML = estPermanence ? `
+        <tr><th>Matricule</th><th>Nom et prénom</th><th>Ouvrable</th><th>Férié</th><th>Total</th><th>Statut</th></tr>
+    ` : `
+        <tr><th>Matricule</th><th>Nom et prénom</th><th>Ouvrable</th><th>Vendredi</th><th>Ramadan</th><th>Week-end/férié</th><th>Nuit</th><th>Total</th><th>Statut</th></tr>
+    `;
+
+    const data = await apiJSON(`/decomptes/${serviceId}/${annee}/${mois}/?type=${typeActivite}`);
     const corps = document.getElementById('corpsDecompte');
+    const nbColonnes = estPermanence ? 6 : 9;
     if (!data.decomptes.length) {
-        corps.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gris-texte);">Aucun décompte calculé. Ouvrez le planning et cliquez sur « Calculer ».</td></tr>';
+        corps.innerHTML = `<tr><td colspan="${nbColonnes}" style="text-align:center;color:var(--gris-texte);">Aucun décompte calculé. Ouvrez le planning et cliquez sur « Calculer ».</td></tr>`;
+    } else if (estPermanence) {
+        corps.innerHTML = data.decomptes.map(d => `
+            <tr>
+                <td>${d.agent_matricule}</td><td>${d.agent_nom}</td>
+                <td>${d.heures_ouvrable} h</td><td>${d.heures_weekend_ferie} h</td>
+                <td><strong>${d.total_heures} h</strong></td><td><span class="badge">${d.statut_validation}</span></td>
+            </tr>
+        `).join('');
     } else {
         corps.innerHTML = data.decomptes.map(d => `
             <tr>
@@ -62,18 +92,18 @@ async function chargerDecompte() {
 }
 
 async function telechargerExport(type) {
-    const reponse = await api(`/decomptes/${serviceId}/${annee}/${mois}/export/${type}/`);
+    const reponse = await api(`/decomptes/${serviceId}/${annee}/${mois}/export/${type}/?type=${typeActivite}`);
     const blob = await reponse.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = type === 'excel' ? `decompte_${annee}_${mois}.xlsx` : `bordereau_${annee}_${mois}.pdf`;
+    a.download = type === 'excel' ? `decompte_${typeActivite}_${annee}_${mois}.xlsx` : `bordereau_${typeActivite}_${annee}_${mois}.pdf`;
     a.click();
     window.URL.revokeObjectURL(url);
 }
 
 async function validerDecompte() {
-    await apiJSON(`/decomptes/${serviceId}/${annee}/${mois}/valider/`, { method: 'POST' });
+    await apiJSON(`/decomptes/${serviceId}/${annee}/${mois}/valider/?type=${typeActivite}`, { method: 'POST' });
     chargerDecompte();
 }
 

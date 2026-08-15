@@ -14,11 +14,18 @@
             <div><h2>Indicateurs par service</h2><p>Heures totales, moyenne par agent, gardes de nuit, comparaison entre mois</p></div>
         </div>
 
-        <div class="card p-3" style="max-width:520px;margin-bottom:1.5rem;">
+        <div class="card p-3" style="max-width:620px;margin-bottom:1.5rem;">
             <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:1rem;align-items:end;">
                 <div><label class="form-label">Service</label><select id="serviceId" class="form-select"></select></div>
                 <div><label class="form-label">Année</label><input type="number" id="annee" class="form-control" value="2026"></div>
                 <div><button class="btn btn-primary" onclick="chargerIndicateurs()">Afficher</button></div>
+            </div>
+            <div class="mb-0" style="margin-top:1rem;">
+                <label class="form-label">Type d'activité</label>
+                <div style="display:flex;gap:0.5rem;">
+                    <button type="button" class="btn btn-outline-primary" id="btnGarde" style="flex:1;" onclick="choisirType('garde')">Garde</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnPermanence" style="flex:1;" onclick="choisirType('permanence')">Permanence</button>
+                </div>
             </div>
         </div>
 
@@ -35,7 +42,7 @@
             </div>
 
             <div class="card p-3">
-                <h5 class="mb-3">Comparaison entre mois — heures totales</h5>
+                <h5 class="mb-3" id="titreGraphique">Comparaison entre mois — heures totales</h5>
                 <div id="graphique" style="display:flex;align-items:flex-end;gap:0.75rem;height:220px;padding:0 0.5rem;"></div>
             </div>
 
@@ -52,13 +59,24 @@
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
 const MOIS_FR = ["", "Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+let typeActivite = 'garde';
+
+function choisirType(type) {
+    typeActivite = type;
+    document.getElementById('btnGarde').className = type === 'garde' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnPermanence').className = type === 'permanence' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    if (document.getElementById('serviceId').value) chargerIndicateurs();
+}
 
 async function chargerIndicateurs() {
     const serviceId = document.getElementById('serviceId').value;
     const annee = document.getElementById('annee').value;
     if (!serviceId) return;
 
-    const data = await apiJSON(`/decomptes/tableau-bord/${serviceId}/${annee}/`);
+    const libelleType = typeActivite === 'permanence' ? 'permanence' : 'garde';
+    document.getElementById('titreGraphique').textContent = `Comparaison entre mois — heures totales de ${libelleType}`;
+
+    const data = await apiJSON(`/decomptes/tableau-bord/${serviceId}/${annee}/?type=${typeActivite}`);
     document.getElementById('zoneVide').style.display = 'none';
     document.getElementById('zoneIndicateurs').style.display = 'block';
 
@@ -109,6 +127,7 @@ async function chargerIndicateurs() {
     if (!utilisateur) return;
     const services = await apiJSON('/services/');
     document.getElementById('serviceId').innerHTML = `<option value="">— Choisir —</option>` + services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+    choisirType('garde');
 })();
 </script>
 </body>

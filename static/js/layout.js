@@ -16,34 +16,44 @@ async function chargerLayout(pageActive) {
         return null;
     }
 
+    const estConsultation = utilisateur.role === 'consultation';
     const peutVoirAgents = ['administrateur', 'gestionnaire', 'directeur', 'chef_service'].includes(utilisateur.role);
     const peutVoirDemandes = ['administrateur', 'gestionnaire'].includes(utilisateur.role);
 
-    const liens = [
-        { href: '/index.html', texte: 'Mes décomptes', cle: 'accueil' },
-        { href: '/services.html', texte: 'Services', cle: 'services' },
-        { href: '/calendrier.html', texte: 'Calendrier', cle: 'calendrier' },
-        { href: '/plannings.html', texte: 'Plannings', cle: 'plannings' },
-        { href: '/decomptes.html', texte: 'Décomptes', cle: 'decomptes' },
-    ];
-    if (peutVoirAgents) {
-        liens.push({ href: '/absences.html', texte: 'Absences', cle: 'absences' });
-        liens.push({ href: '/agents.html', texte: 'Agents', cle: 'agents' });
+    let liens;
+    if (estConsultation) {
+        liens = [
+            { href: '/mon-planning.html', texte: 'Mon planning', cle: 'mon-planning' },
+            { href: '/profil.html', texte: 'Mon profil', cle: 'profil' },
+        ];
+    } else {
+        liens = [
+            { href: '/index.html', texte: 'Mes décomptes', cle: 'accueil' },
+            { href: '/services.html', texte: 'Services', cle: 'services' },
+            { href: '/calendrier.html', texte: 'Calendrier', cle: 'calendrier' },
+            { href: '/plannings.html', texte: 'Plannings', cle: 'plannings' },
+            { href: '/decomptes.html', texte: 'Décomptes', cle: 'decomptes' },
+        ];
+        if (peutVoirAgents) {
+            liens.push({ href: '/absences.html', texte: 'Absences', cle: 'absences' });
+            liens.push({ href: '/agents.html', texte: 'Agents', cle: 'agents' });
+        }
+        if (peutVoirDemandes) liens.push({ href: '/demandes.html', texte: 'Demandes', cle: 'demandes' });
+        if (['administrateur', 'directeur', 'gestionnaire', 'chef_service'].includes(utilisateur.role)) {
+            liens.push({ href: '/tableau-bord.html', texte: 'Tableau de bord', cle: 'tableau-bord' });
+        }
+        if (['administrateur', 'directeur'].includes(utilisateur.role)) {
+            liens.push({ href: '/journal-audit.html', texte: "Journal d'audit", cle: 'journal-audit' });
+        }
+        liens.push({ href: '/profil.html', texte: 'Mon profil', cle: 'profil' });
     }
-    if (peutVoirDemandes) liens.push({ href: '/demandes.html', texte: 'Demandes', cle: 'demandes' });
-    if (['administrateur', 'directeur', 'gestionnaire', 'chef_service'].includes(utilisateur.role)) {
-        liens.push({ href: '/tableau-bord.html', texte: 'Tableau de bord', cle: 'tableau-bord' });
-    }
-    if (['administrateur', 'directeur'].includes(utilisateur.role)) {
-        liens.push({ href: '/journal-audit.html', texte: "Journal d'audit", cle: 'journal-audit' });
-    }
-    liens.push({ href: '/profil.html', texte: 'Mon profil', cle: 'profil' });
 
     const navHtml = liens.map(l => `<a href="${l.href}" class="${l.cle === pageActive ? 'actif' : ''}">${l.texte}</a>`).join('');
+    const accueilHref = estConsultation ? '/mon-planning.html' : '/index.html';
 
     document.getElementById('sidebar-container').innerHTML = `
         <nav class="sidebar">
-            <a class="sidebar-brand" href="/index.html">CHR de Fès<small>Heures supplémentaires</small></a>
+            <a class="sidebar-brand" href="${accueilHref}">CHR de Fès<small>Heures supplémentaires</small></a>
             <div class="sidebar-nav">${navHtml}</div>
             <div class="sidebar-footer">
                 <div class="nom">${utilisateur.nom_complet}</div>

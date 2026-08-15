@@ -32,48 +32,64 @@
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
+let estAdmin = false;
+
 (async () => {
     const utilisateur = await chargerLayout('services');
     if (!utilisateur) return;
 
-    if (utilisateur.role === 'administrateur') {
+    estAdmin = utilisateur.role === 'administrateur';
+    if (estAdmin) {
         document.getElementById('zoneActionsAdmin').style.display = 'flex';
     }
 
-    async function chargerServices() {
-        const services = await apiJSON('/services/');
-        const conteneur = document.getElementById('listeServices');
-        if (!services.length) {
-            conteneur.innerHTML = '<p style="color:var(--gris-texte);">Aucun service enregistré.</p>';
-            return;
-        }
-        conteneur.innerHTML = services.map(s => `
-            <div class="card p-3">
-                <h5>${s.nom}</h5>
-                <p style="color:var(--gris-texte);font-size:0.85rem;">${s.description || ''}</p>
-                <p><span class="badge">${s.postes.length} poste(s)</span></p>
-                <a href="/service-detail.html?id=${s.id}" class="btn btn-sm btn-outline-light" style="color:var(--bleu-principal);border-color:var(--bleu-principal);">Détails</a>
-            </div>
-        `).join('');
-    }
-
-    document.getElementById('formService').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await apiJSON('/services/', {
-            method: 'POST',
-            body: JSON.stringify({
-                nom: document.getElementById('nomService').value,
-                description: document.getElementById('descriptionService').value,
-                vacation_cumulee: false,
-            }),
-        });
-        document.getElementById('formService').reset();
-        document.getElementById('formNouveauService').style.display = 'none';
-        chargerServices();
-    });
-
     chargerServices();
 })();
+
+async function chargerServices() {
+    const services = await apiJSON('/services/');
+    const conteneur = document.getElementById('listeServices');
+    if (!services.length) {
+        conteneur.innerHTML = '<p style="color:var(--gris-texte);">Aucun service enregistré.</p>';
+        return;
+    }
+    conteneur.innerHTML = services.map(s => `
+        <div class="card p-3">
+            <h5>${s.nom}</h5>
+            <p style="color:var(--gris-texte);font-size:0.85rem;">${s.description || ''}</p>
+            <p><span class="badge">${s.postes.length} poste(s)</span></p>
+            <div style="display:flex;gap:0.5rem;">
+                <a href="/service-detail.html?id=${s.id}" class="btn btn-sm btn-outline-light" style="color:var(--bleu-principal);border-color:var(--bleu-principal);">Détails</a>
+                ${estAdmin ? `<button class="btn btn-sm btn-outline-danger" onclick="supprimerService(${s.id}, '${s.nom.replace(/'/g, "\\'")}')">Supprimer</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function supprimerService(id, nom) {
+    if (!confirm(`Supprimer le service « ${nom} » ? Cette action supprimera aussi ses postes, son équipe et ses plannings. Irréversible.`)) return;
+    try {
+        await apiJSON(`/services/${id}/`, { method: 'DELETE' });
+        chargerServices();
+    } catch (err) {
+        alert(err.message || "Suppression impossible.");
+    }
+}
+
+document.getElementById('formService').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await apiJSON('/services/', {
+        method: 'POST',
+        body: JSON.stringify({
+            nom: document.getElementById('nomService').value,
+            description: document.getElementById('descriptionService').value,
+            vacation_cumulee: false,
+        }),
+    });
+    document.getElementById('formService').reset();
+    document.getElementById('formNouveauService').style.display = 'none';
+    chargerServices();
+});
 </script>
 </body>
 </html>

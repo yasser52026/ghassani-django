@@ -1,0 +1,48 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mon planning — CHR de Fès</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-container"></div>
+    <main class="contenu-principal">
+        <div class="page-header">
+            <div><h2>Mon planning</h2><p>Vos prochaines gardes et permanences (60 prochains jours)</p></div>
+        </div>
+        <div class="card p-3">
+            <table>
+                <thead><tr><th>Date</th><th>Jour</th><th>Service</th><th>Type</th><th>Poste</th><th>Horaires</th></tr></thead>
+                <tbody id="corpsPlanning"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/layout.js' %}"></script>
+<script>
+async function chargerMonPlanning() {
+    const gardes = await apiJSON('/plannings/mes-gardes/');
+    document.getElementById('corpsPlanning').innerHTML = gardes.length ? gardes.map(g => `
+        <tr>
+            <td>${g.date}</td>
+            <td>${g.jour_semaine}</td>
+            <td>${g.service}</td>
+            <td>${g.type_activite}</td>
+            <td>${g.type_vacation}</td>
+            <td>${g.heure_debut} — ${g.heure_fin}</td>
+        </tr>
+    `).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gris-texte);">Aucune garde ou permanence prévue.</td></tr>';
+}
+
+(async () => {
+    const utilisateur = await chargerLayout('mon-planning');
+    if (!utilisateur) return;
+    chargerMonPlanning();
+})();
+</script>
+</body>
+</html>

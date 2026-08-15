@@ -16,6 +16,16 @@ ROLES = [
     (ROLE_CONSULTATION, "Consultation seule"),
 ]
 
+FONCTION_MEDECIN = "medecin"
+FONCTION_INFIRMIER = "infirmier"
+FONCTION_AUTRE = "autre"
+
+FONCTIONS = [
+    (FONCTION_MEDECIN, "Médecin"),
+    (FONCTION_INFIRMIER, "Infirmier"),
+    (FONCTION_AUTRE, "Autre"),
+]
+
 
 class UtilisateurManager(BaseUserManager):
     def create_user(self, email, matricule, nom, prenom, password=None, **extra):
@@ -43,7 +53,7 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     matricule = models.CharField(max_length=20, unique=True)
     nom = models.CharField(max_length=80)
     prenom = models.CharField(max_length=80)
-    fonction = models.CharField(max_length=120, blank=True)
+    fonction = models.CharField(max_length=20, choices=FONCTIONS, blank=True, default=FONCTION_AUTRE)
     cin = models.CharField(max_length=20, blank=True)
     telephone = models.CharField(max_length=20, blank=True)
     rib = models.CharField(max_length=34, blank=True)

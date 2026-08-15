@@ -104,7 +104,9 @@ def controler_planning(planning):
 def generer_rotation(planning):
     """Pré-remplit les gardes vides du planning à partir de l'ordre de rotation
     de l'équipe du service, propre au type d'activité (garde ou permanence).
-    Ne touche jamais une garde déjà affectée (les corrections manuelles restent intactes)."""
+    Un même agent ne peut jamais être proposé deux fois le même jour (par ex. jour
+    ET nuit) : chaque date garde la trace des agents déjà retenus, tous postes
+    confondus pour ce planning. Ne touche jamais une garde déjà affectée."""
     equipe = list(
         Equipe.objects.filter(service=planning.service, type_activite=planning.type_activite)
         .order_by('ordre').values_list('agent_id', flat=True)
@@ -112,49 +114,78 @@ def generer_rotation(planning):
     if not equipe:
         return {'nb_affectations': 0, 'message': "Aucune équipe n'est configurée pour ce type d'activité sur ce service."}
 
+    postes = list(Poste.objects.filter(service=planning.service, type_activite=planning.type_activite))
+    if not postes:
+        return {'nb_affectations': 0, 'message': "Aucun poste n'est configuré pour ce type d'activité sur ce service."}
+
     est_permanence = planning.type_activite == TYPE_PERMANENCE
+
+    etats = {p.id: EtatRotation.objects.get_or_create(poste=p)[0] for p in postes}
+    curseurs = {p.id: etats[p.id].index_suivant for p in postes}
+
+    deja_pris = defaultdict(set)
+    for a in AffectationGarde.objects.filter(garde__planning=planning).select_related('garde'):
+        deja_pris[a.garde.date].add(a.agent_id)
+
+    heures_permanence_cumulees = {}
+    if est_permanence:
+        for agent_id in equipe:
+            heures_permanence_cumulees[agent_id] = heures_permanence_affectees(agent_id, planning)
+
+    gardes_par_poste = {
+        p.id: {g.date: g for g in planning.gardes.filter(poste=p).prefetch_related('affectations')}
+        for p in postes
+    }
+    toutes_dates = sorted({d for gardes in gardes_par_poste.values() for d in gardes.keys()})
+
     nb_total = 0
     agents_bloques = set()
 
-    for poste in Poste.objects.filter(service=planning.service, type_activite=planning.type_activite):
-        etat, _ = EtatRotation.objects.get_or_create(poste=poste)
-        cursor = etat.index_suivant
-
-        gardes = planning.gardes.filter(poste=poste).order_by('date').prefetch_related('affectations')
-        for garde in gardes:
-            if garde.affectations.exists():
+    for une_date in toutes_dates:
+        for poste in postes:
+            garde = gardes_par_poste[poste.id].get(une_date)
+            if not garde or garde.affectations.exists():
                 continue
 
             effectif = poste.effectif_attendu
+            cursor = curseurs[poste.id]
+            heures_garde = None
+            if est_permanence:
+                heures_garde = heures_bareme(
+                    poste.type_vacation, categorie_du_jour_permanence(une_date), une_date,
+                    type_activite=TYPE_PERMANENCE,
+                )
+
             retenus = []
             essais = 0
             i = cursor
             while len(retenus) < effectif and essais < len(equipe) * 2:
                 agent_id = equipe[i % len(equipe)]
                 deja_retenu = agent_id in retenus
-                absent = agent_est_absent(agent_id, garde.date)
+                deja_ce_jour = agent_id in deja_pris[une_date]
+                absent = not deja_retenu and not deja_ce_jour and agent_est_absent(agent_id, une_date)
                 depasse_plafond = False
-                if est_permanence and not deja_retenu and not absent:
-                    heures_garde = heures_bareme(
-                        poste.type_vacation, categorie_du_jour_permanence(garde.date), garde.date,
-                        type_activite=TYPE_PERMANENCE,
-                    )
-                    deja = heures_permanence_affectees(agent_id, planning)
-                    if deja + heures_garde > PLAFOND_MENSUEL_PERMANENCE:
+                if est_permanence and not deja_retenu and not deja_ce_jour and not absent:
+                    if heures_permanence_cumulees.get(agent_id, 0.0) + heures_garde > PLAFOND_MENSUEL_PERMANENCE:
                         depasse_plafond = True
                         agents_bloques.add(agent_id)
-                if not deja_retenu and not absent and not depasse_plafond:
+
+                if not deja_retenu and not deja_ce_jour and not absent and not depasse_plafond:
                     retenus.append(agent_id)
                 i += 1
                 essais += 1
 
             for agent_id in retenus:
                 AffectationGarde.objects.create(garde=garde, agent_id=agent_id)
+                deja_pris[une_date].add(agent_id)
+                if est_permanence:
+                    heures_permanence_cumulees[agent_id] = heures_permanence_cumulees.get(agent_id, 0.0) + heures_garde
             nb_total += len(retenus)
-            cursor = (cursor + effectif) % len(equipe)
+            curseurs[poste.id] = (cursor + effectif) % len(equipe)
 
-        etat.index_suivant = cursor
-        etat.save()
+    for poste in postes:
+        etats[poste.id].index_suivant = curseurs[poste.id]
+        etats[poste.id].save()
 
     message = None
     if agents_bloques:

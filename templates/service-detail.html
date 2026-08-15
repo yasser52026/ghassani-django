@@ -14,38 +14,77 @@
             <div><h2 id="nomService">...</h2><p id="descriptionService"></p></div>
         </div>
 
-        <div class="card p-3" style="max-width:700px;">
-            <h5 class="mb-3">Postes / vacations</h5>
-            <table>
-                <thead><tr><th>Type</th><th>Horaires</th><th>Effectif attendu</th><th></th></tr></thead>
-                <tbody id="corpsPostes"></tbody>
-            </table>
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+            <button type="button" class="btn btn-outline-primary" id="btnGarde" onclick="choisirType('garde')">Garde</button>
+            <button type="button" class="btn btn-outline-primary" id="btnPermanence" onclick="choisirType('permanence')">Permanence</button>
+        </div>
 
-            <form id="formPoste" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;margin-top:1rem;align-items:end;">
-                <div>
-                    <label class="form-label">Type</label>
-                    <select id="typeVacation" class="form-select"><option value="jour">Jour</option><option value="nuit">Nuit</option></select>
-                </div>
-                <div><label class="form-label">Début</label><input type="time" id="heureDebut" class="form-control" required></div>
-                <div><label class="form-label">Fin</label><input type="time" id="heureFin" class="form-control" required></div>
-                <div><label class="form-label">Effectif</label><input type="number" id="effectifAttendu" class="form-control" value="1" min="1" required></div>
-                <div><button class="btn btn-primary btn-sm">Ajouter</button></div>
-            </form>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+            <div class="card p-3">
+                <h5 class="mb-3">Postes / vacations</h5>
+                <table>
+                    <thead><tr><th>Type</th><th>Horaires</th><th>Effectif attendu</th><th></th></tr></thead>
+                    <tbody id="corpsPostes"></tbody>
+                </table>
+
+                <form id="formPoste" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;margin-top:1rem;align-items:end;">
+                    <div>
+                        <label class="form-label">Type</label>
+                        <select id="typeVacation" class="form-select"><option value="jour">Jour</option><option value="nuit">Nuit</option></select>
+                    </div>
+                    <div><label class="form-label">Début</label><input type="time" id="heureDebut" class="form-control" required></div>
+                    <div><label class="form-label">Fin</label><input type="time" id="heureFin" class="form-control" required></div>
+                    <div><label class="form-label">Effectif</label><input type="number" id="effectifAttendu" class="form-control" value="1" min="1" required></div>
+                    <div><button class="btn btn-primary btn-sm" type="submit">Ajouter</button></div>
+                </form>
+                <div id="erreurPoste" style="color:#c0392b;font-size:0.85rem;margin-top:0.5rem;"></div>
+            </div>
+
+            <div class="card p-3">
+                <h5 class="mb-3">Équipe — ordre de rotation</h5>
+                <p style="color:var(--gris-texte);font-size:0.85rem;margin-top:-0.5rem;">
+                    Utilisée par « Générer la rotation » pour ce type d'activité. Tapez un nom pour ajouter n'importe quel agent actif ; chaque agent n'apparaît qu'une fois dans cette équipe.
+                </p>
+                <table>
+                    <thead><tr><th>Ordre</th><th>Agent</th><th></th></tr></thead>
+                    <tbody id="corpsEquipe"></tbody>
+                </table>
+
+                <form id="formEquipe" style="display:grid;grid-template-columns:2fr 1fr auto;gap:0.5rem;margin-top:1rem;align-items:end;">
+                    <div>
+                        <label class="form-label">Agent</label>
+                        <input type="text" id="agentEquipeInput" class="form-control" list="listeAgentsEquipe" placeholder="Nom de l'agent..." autocomplete="off" required>
+                        <datalist id="listeAgentsEquipe"></datalist>
+                    </div>
+                    <div><label class="form-label">Ordre</label><input type="number" id="ordreEquipe" class="form-control" value="1" min="1" required></div>
+                    <div><button class="btn btn-primary btn-sm" type="submit">Ajouter</button></div>
+                </form>
+                <div id="erreurEquipe" style="color:#c0392b;font-size:0.85rem;margin-top:0.5rem;"></div>
+            </div>
         </div>
     </main>
 </div>
-<script src="{% static 'js/api.js' %}"></script>
-<script src="{% static 'js/layout.js' %}"></script>
+<script src="{% static 'js/api.js' %}?v=3"></script>
+<script src="{% static 'js/layout.js' %}?v=3"></script>
 <script>
 const params = new URLSearchParams(window.location.search);
 const serviceId = params.get('id');
+let typeActivite = 'garde';
+let serviceCourant = null;
+let tousLesAgentsActifs = [];
+let agentsMapEquipe = {};
 
-async function chargerService() {
-    const service = await apiJSON(`/services/${serviceId}/`);
-    document.getElementById('nomService').textContent = service.nom;
-    document.getElementById('descriptionService').textContent = service.description || '';
+function choisirType(type) {
+    typeActivite = type;
+    document.getElementById('btnGarde').className = type === 'garde' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnPermanence').className = type === 'permanence' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    afficherPostes();
+    afficherEquipe();
+}
 
-    document.getElementById('corpsPostes').innerHTML = service.postes.length ? service.postes.map(p => `
+function afficherPostes() {
+    const postes = (serviceCourant.postes || []).filter(p => p.type_activite === typeActivite);
+    document.getElementById('corpsPostes').innerHTML = postes.length ? postes.map(p => `
         <tr>
             <td>${p.type_vacation === 'jour' ? 'Jour' : 'Nuit'}</td>
             <td>${p.heure_debut.slice(0,5)} — ${p.heure_fin.slice(0,5)}</td>
@@ -55,26 +94,92 @@ async function chargerService() {
     `).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gris-texte);">Aucun poste défini.</td></tr>';
 }
 
+function afficherEquipe() {
+    const equipe = (serviceCourant.equipe || []).filter(e => e.type_activite === typeActivite).sort((a, b) => a.ordre - b.ordre);
+    document.getElementById('corpsEquipe').innerHTML = equipe.length ? equipe.map(e => `
+        <tr>
+            <td>${e.ordre}</td>
+            <td>${e.agent_nom}</td>
+            <td><button class="btn btn-sm btn-outline-danger" onclick="supprimerEquipe(${e.id})">×</button></td>
+        </tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--gris-texte);">Aucune équipe définie.</td></tr>';
+
+    const dejaDansEquipe = new Set(equipe.map(e => e.agent));
+    const disponibles = tousLesAgentsActifs.filter(a => !dejaDansEquipe.has(a.id));
+    agentsMapEquipe = {};
+    disponibles.forEach(a => agentsMapEquipe[a.nom_complet] = a.id);
+    document.getElementById('listeAgentsEquipe').innerHTML = disponibles.map(a => `<option value="${a.nom_complet}">`).join('');
+    document.getElementById('agentEquipeInput').value = '';
+    document.getElementById('ordreEquipe').value = equipe.length + 1;
+}
+
+async function chargerService() {
+    serviceCourant = await apiJSON(`/services/${serviceId}/`);
+    document.getElementById('nomService').textContent = serviceCourant.nom;
+    document.getElementById('descriptionService').textContent = serviceCourant.description || '';
+
+    const tousAgents = await apiJSON('/comptes/agents/');
+    const listeAgents = Array.isArray(tousAgents) ? tousAgents : (tousAgents.results || []);
+    tousLesAgentsActifs = listeAgents.filter(a => a.statut === 'actif');
+
+    choisirType(typeActivite);
+}
+
 async function supprimerPoste(id) {
     await api(`/postes/${id}/`, { method: 'DELETE' });
     chargerService();
 }
 
+async function supprimerEquipe(id) {
+    await api(`/equipe/${id}/`, { method: 'DELETE' });
+    chargerService();
+}
+
 document.getElementById('formPoste').addEventListener('submit', async (e) => {
     e.preventDefault();
-    await apiJSON('/postes/', {
-        method: 'POST',
-        body: JSON.stringify({
-            service: serviceId,
-            type_vacation: document.getElementById('typeVacation').value,
-            heure_debut: document.getElementById('heureDebut').value,
-            heure_fin: document.getElementById('heureFin').value,
-            effectif_attendu: parseInt(document.getElementById('effectifAttendu').value),
-        }),
-    });
-    e.target.reset();
-    document.getElementById('effectifAttendu').value = 1;
-    chargerService();
+    const zoneErreur = document.getElementById('erreurPoste');
+    zoneErreur.textContent = '';
+    try {
+        await apiJSON('/postes/', {
+            method: 'POST',
+            body: JSON.stringify({
+                service: serviceId,
+                type_activite: typeActivite,
+                type_vacation: document.getElementById('typeVacation').value,
+                heure_debut: document.getElementById('heureDebut').value,
+                heure_fin: document.getElementById('heureFin').value,
+                effectif_attendu: parseInt(document.getElementById('effectifAttendu').value),
+            }),
+        });
+        e.target.reset();
+        document.getElementById('effectifAttendu').value = 1;
+        chargerService();
+    } catch (err) {
+        zoneErreur.textContent = err.message;
+    }
+});
+
+document.getElementById('formEquipe').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const zoneErreur = document.getElementById('erreurEquipe');
+    zoneErreur.textContent = '';
+    const nomSaisi = document.getElementById('agentEquipeInput').value.trim();
+    const agentId = agentsMapEquipe[nomSaisi];
+    if (!agentId) { zoneErreur.textContent = "Sélectionnez un agent dans la liste proposée."; return; }
+    try {
+        await apiJSON('/equipe/', {
+            method: 'POST',
+            body: JSON.stringify({
+                service: serviceId,
+                type_activite: typeActivite,
+                agent: agentId,
+                ordre: parseInt(document.getElementById('ordreEquipe').value),
+            }),
+        });
+        chargerService();
+    } catch (err) {
+        zoneErreur.textContent = err.message;
+    }
 });
 
 (async () => {

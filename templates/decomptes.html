@@ -11,12 +11,19 @@
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2>États récapitulatifs</h2><p>Sélectionnez un service et un mois pour consulter le décompte</p></div>
+            <div><h2>États récapitulatifs</h2><p>Sélectionnez un service, un type d'activité et un mois pour consulter le décompte</p></div>
         </div>
         <div class="card p-4" style="max-width:480px;">
             <div class="mb-3">
                 <label class="form-label">Service</label>
                 <select id="serviceId" class="form-select"></select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Type d'activité</label>
+                <div style="display:flex;gap:0.5rem;">
+                    <button type="button" class="btn btn-outline-primary" id="btnGarde" style="flex:1;" onclick="choisirType('garde')">Garde</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnPermanence" style="flex:1;" onclick="choisirType('permanence')">Permanence</button>
+                </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                 <div><label class="form-label">Mois</label>
@@ -36,19 +43,28 @@
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
+let typeActivite = 'garde';
+
+function choisirType(type) {
+    typeActivite = type;
+    document.getElementById('btnGarde').className = type === 'garde' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnPermanence').className = type === 'permanence' ? 'btn btn-primary' : 'btn btn-outline-primary';
+}
+
 (async () => {
     const utilisateur = await chargerLayout('decomptes');
     if (!utilisateur) return;
     const services = await apiJSON('/services/');
     document.getElementById('serviceId').innerHTML = services.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
     document.getElementById('mois').value = new Date().getMonth() + 1;
+    choisirType('garde');
 })();
 
 function voirDecompte() {
     const serviceId = document.getElementById('serviceId').value;
     const mois = document.getElementById('mois').value;
     const annee = document.getElementById('annee').value;
-    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}`;
+    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${typeActivite}`;
 }
 </script>
 </body>

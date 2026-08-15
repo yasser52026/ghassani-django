@@ -5,7 +5,7 @@ async function api(chemin, options = {}) {
     const entetes = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (token) entetes['Authorization'] = `Bearer ${token}`;
 
-    let reponse = await fetch(`${API_BASE}${chemin}`, { ...options, headers: entetes });
+    let reponse = await fetch(`${API_BASE}${chemin}`, { ...options, headers: entetes, cache: 'no-store' });
 
     if (reponse.status === 401) {
         const refresh = localStorage.getItem('refresh_token');
@@ -14,12 +14,13 @@ async function api(chemin, options = {}) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh }),
+                cache: 'no-store',
             });
             if (rafraichi.ok) {
                 const data = await rafraichi.json();
                 localStorage.setItem('access_token', data.access);
                 entetes['Authorization'] = `Bearer ${data.access}`;
-                reponse = await fetch(`${API_BASE}${chemin}`, { ...options, headers: entetes });
+                reponse = await fetch(`${API_BASE}${chemin}`, { ...options, headers: entetes, cache: 'no-store' });
             } else {
                 localStorage.clear();
                 window.location.href = '/connexion.html';

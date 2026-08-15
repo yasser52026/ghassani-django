@@ -3,8 +3,31 @@ from rest_framework import viewsets
 from comptes.models import ROLE_ADMIN
 from comptes.permissions import role_requis
 from decomptes.models import journaliser
-from .models import Service, Poste, Equipe
+from .models import Service, Poste, Equipe, TYPE_GARDE, TYPE_PERMANENCE
 from .serializers import ServiceSerializer, PosteSerializer, EquipeSerializer
+
+POSTES_PAR_DEFAUT = [
+    dict(type_activite=TYPE_GARDE, type_vacation='jour', heure_debut='16:30', heure_fin='20:30', effectif_attendu=1),
+    dict(type_activite=TYPE_GARDE, type_vacation='nuit', heure_debut='20:30', heure_fin='08:30', effectif_attendu=1),
+    dict(type_activite=TYPE_PERMANENCE, type_vacation='jour', heure_debut='08:30', heure_fin='16:30', effectif_attendu=1),
+    dict(type_activite=TYPE_PERMANENCE, type_vacation='nuit', heure_debut='20:30', heure_fin='08:30', effectif_attendu=1),
+]
+
+
+def creer_postes_par_defaut(service):
+    """Crée les 4 postes standards (garde jour/nuit, permanence jour/nuit) pour
+    un service, en sautant ceux qui existent déjà (même service+type_activite+type_vacation)."""
+    existants = set(
+        Poste.objects.filter(service=service).values_list('type_activite', 'type_vacation')
+    )
+    a_creer = [
+        Poste(service=service, **defaut)
+        for defaut in POSTES_PAR_DEFAUT
+        if (defaut['type_activite'], defaut['type_vacation']) not in existants
+    ]
+    if a_creer:
+        Poste.objects.bulk_create(a_creer)
+    return len(a_creer)
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -19,6 +42,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         service = serializer.save()
         journaliser(self.request.user, "Création d'un service", cible=f"Service:{service.id}", details=service.nom)
+        nb_postes = creer_postes_par_defaut(service)
+        if nb_postes:
+            journaliser(
+                self.request.user, "Postes par défaut créés", cible=f"Service:{service.id}",
+                details=f"{nb_postes} poste(s) standard (garde jour/nuit, permanence jour/nuit).",
+            )
 
     def perform_update(self, serializer):
         service = serializer.save()
