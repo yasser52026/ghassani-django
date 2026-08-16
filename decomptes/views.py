@@ -80,6 +80,8 @@ class ValiderDecompteView(APIView):
 
     def post(self, request, service_id, annee, mois):
         type_activite = _type_activite_depuis_requete(request)
+        if not acces_service_autorise(request.user, service_id):
+            return Response(status=403)
         decomptes = Decompte.objects.filter(service_id=service_id, type_activite=type_activite, annee=annee, mois=mois)
         nb = 0
         for d in decomptes:

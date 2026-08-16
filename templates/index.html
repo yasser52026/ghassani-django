@@ -5,42 +5,48 @@
     <meta charset="UTF-8">
     <title>Mes décomptes — CHR de Fès</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <style>
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-        .kpi-card { background: #fff; border-radius: 0.5rem; padding: 1.25rem; border-left: 4px solid #1F4E78; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        .kpi-label { font-size: 0.75rem; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; margin-bottom: 0.5rem; font-weight: 600; }
-        .kpi-value { font-size: 2rem; font-weight: 700; color: #1f2937; }
-        .card { margin-bottom: 1.5rem; background: #fff; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 1.25rem; }
-        .card h5 { margin-bottom: 1rem; font-size: 1.1rem; color: #1f2937; }
-        .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.875rem; border: 1px solid #1F4E78; color: #1F4E78; background: transparent; border-radius: 0.375rem; cursor: pointer; text-decoration: none; display: inline-block; }
-        .btn-sm:hover { background: #1F4E78; color: #fff; }
-    </style>
+    <link rel="stylesheet" href="{% static 'css/accueil.css' %}">
 </head>
 <body>
 <div class="app-layout">
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2>Mes décomptes</h2><p>Vue d'ensemble des heures supplémentaires — <span id="periode"></span></p></div>
+            <div>
+                <h2 id="salutation">Bonjour</h2>
+                <p>Vue d'ensemble — <span id="periode"></span></p>
+            </div>
         </div>
 
-        <div class="kpi-grid">
-            <div class="kpi-card"><div class="kpi-label">Agents actifs</div><div class="kpi-value" id="kpiAgents">--</div></div>
-            <div class="kpi-card"><div class="kpi-label">Services</div><div class="kpi-value" id="kpiServices">--</div></div>
-            <div class="kpi-card"><div class="kpi-label">Heures supp. ce mois-ci</div><div class="kpi-value" id="kpiHeures">--</div></div>
-            <div class="kpi-card"><div class="kpi-label">Dont heures de nuit</div><div class="kpi-value" id="kpiNuit">--</div></div>
+        <section id="zoneATraiter" style="display:none;">
+            <div class="accueil-section-titre">
+                <h3>À traiter</h3>
+                <span class="accueil-compteur" id="compteurATraiter"></span>
+            </div>
+            <div class="carte-action-liste" id="listeATraiter"></div>
+        </section>
+
+        <div class="accueil-kpi-grid">
+            <div class="accueil-kpi accueil-anim"><div class="accueil-kpi-label">Agents actifs</div><div class="accueil-kpi-valeur" id="kpiAgents">—</div></div>
+            <div class="accueil-kpi accueil-anim"><div class="accueil-kpi-label" id="labelServices">Mes services</div><div class="accueil-kpi-valeur" id="kpiServices">—</div></div>
+            <div class="accueil-kpi accueil-anim accueil-kpi-large">
+                <div class="accueil-kpi-label">Heures ce mois-ci</div>
+                <div class="accueil-kpi-valeur" id="kpiHeures">—</div>
+                <div class="accueil-kpi-detail" id="kpiHeuresDetail"></div>
+            </div>
         </div>
 
-        <div class="card">
-            <h5>Plannings récents</h5>
-            <table><thead><tr><th>Service</th><th>Mois</th><th>Statut</th><th></th></tr></thead>
-            <tbody id="corpsPlannings"><tr><td colspan="4" style="text-align:center;color:#6b7280;">Chargement...</td></tr></tbody></table>
-        </div>
-
-        <div class="card">
-            <h5>Décomptes récents</h5>
-            <table><thead><tr><th>Service</th><th>Mois</th><th>Total</th><th>Statut</th></tr></thead>
-            <tbody id="corpsDecomptes"><tr><td colspan="4" style="text-align:center;color:#6b7280;">Chargement...</td></tr></tbody></table>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+            <div class="card p-3 accueil-anim">
+                <h5 class="mb-3">Plannings récents</h5>
+                <table><thead><tr><th>Service</th><th>Type</th><th>Mois</th><th>Statut</th><th></th></tr></thead>
+                <tbody id="corpsPlannings"><tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Chargement…</td></tr></tbody></table>
+            </div>
+            <div class="card p-3 accueil-anim">
+                <h5 class="mb-3">Décomptes récents</h5>
+                <table><thead><tr><th>Service</th><th>Type</th><th>Mois</th><th>Total</th><th>Statut</th></tr></thead>
+                <tbody id="corpsDecomptes"><tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Chargement…</td></tr></tbody></table>
+            </div>
         </div>
     </main>
 </div>
@@ -48,107 +54,117 @@
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
+const MOIS_FR = ["", "janvier", "février", "mars", "avril", "mai", "juin",
+                  "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const now = new Date();
 const annee = now.getFullYear();
-const mois  = now.getMonth() + 1;
-document.getElementById('periode').textContent = `${mois}/${annee}`;
+const mois = now.getMonth() + 1;
+document.getElementById('periode').textContent = `${MOIS_FR[mois]} ${annee}`;
+
+const LIBELLES_TYPE = { garde: 'Garde', permanence: 'Permanence' };
+
+function badgeType(type) {
+    return `<span class="badge-type badge-type-${type}">${LIBELLES_TYPE[type]}</span>`;
+}
+
+function peutValider(role, statut) {
+    if (role === 'chef_service') return statut === 'prepare';
+    if (role === 'directeur') return statut === 'valide_chef';
+    if (role === 'administrateur') return statut === 'prepare' || statut === 'valide_chef';
+    return false;
+}
 
 (async () => {
     const utilisateur = await chargerLayout('accueil');
     if (!utilisateur) return;
 
-    // ── 1. SERVICES (we know this works) ──
+    document.getElementById('salutation').textContent = `Bonjour, ${utilisateur.prenom || utilisateur.nom_complet}`;
+
     let services = [];
     try {
         const res = await apiJSON('/services/');
-        services = res.results || res || [];
-        document.getElementById('kpiServices').textContent = services.length;
+        services = Array.isArray(res) ? res : (res.results || []);
     } catch (e) { console.error('Services:', e); }
 
-    // ── 2. AGENTS ──
-    const agentUrls = ['/agents/', '/comptes/agents/', '/api/comptes/agents/'];
-    for (const url of agentUrls) {
-        try {
-            const res = await apiJSON(url);
-            const agents = res.results || res || [];
-            document.getElementById('kpiAgents').textContent = agents.length;
-            break; 
-        } catch (e) { /* try next */ }
-    }
+    try {
+        const agents = await apiJSON('/comptes/agents/');
+        document.getElementById('kpiAgents').textContent = (Array.isArray(agents) ? agents : (agents.results || [])).length;
+    } catch (e) { console.error('Agents:', e); }
 
-    // ── 3. HOURS & PLANNINGS: iterate services (uses ONLY existing endpoints) ──
-    let totalHeures = 0, totalNuit = 0;
+    let totalHeures = 0, totalNuit = 0, totalPermanence = 0;
     const planningsList = [];
     const decomptesList = [];
+    const aTraiter = [];
+    const servicesAccessibles = new Set();
 
     for (const svc of services) {
-        const sid = svc.id;
-        
-        
-        try {
-            const dec = await apiJSON(`/decomptes/${sid}/${annee}/${mois}/`);
-            const liste = dec.decomptes || dec.results || [];
-            liste.forEach(d => {
-                totalHeures += parseFloat(d.total_heures || 0);
-                totalNuit   += parseFloat(d.heures_nuit || 0);
-            });
-            if (liste.length) {
-                decomptesList.push({
-                    service: svc.nom,
-                    mois, annee,
-                    total: liste.reduce((s, d) => s + parseFloat(d.total_heures || 0), 0).toFixed(1),
-                    statut: liste[0]?.statut_validation || 'préparé'
+        for (const type of ['garde', 'permanence']) {
+            try {
+                const dec = await apiJSON(`/decomptes/${svc.id}/${annee}/${mois}/?type=${type}`);
+                const liste = dec.decomptes || [];
+                liste.forEach(d => {
+                    totalHeures += parseFloat(d.total_heures || 0);
+                    totalNuit += parseFloat(d.heures_nuit || 0);
+                    if (type === 'permanence') totalPermanence += parseFloat(d.total_heures || 0);
+                    if (peutValider(utilisateur.role, d.statut_validation)) {
+                        aTraiter.push({ service: svc.nom, service_id: svc.id, type, agent: d.agent_nom, total: d.total_heures, statut: d.statut_validation });
+                    }
                 });
-            }
-        } catch (e) { }
+                if (liste.length) {
+                    decomptesList.push({
+                        service: svc.nom, type,
+                        total: liste.reduce((s, d) => s + parseFloat(d.total_heures || 0), 0).toFixed(1),
+                        statut: liste[0].statut_validation,
+                    });
+                }
+            } catch (e) { /* pas de décompte pour ce service/type, normal */ }
 
-        
-        try {
-            const plan = await apiJSON(`/plannings/${sid}/${annee}/${mois}/`);
-            planningsList.push({
-                service: svc.nom,
-                service_id: sid,
-                mois, annee,
-                statut: plan.statut || 'brouillon'
-            });
-        } catch (e) { }
+            try {
+                const plan = await apiJSON(`/plannings/${svc.id}/${annee}/${mois}/?type=${type}`);
+                planningsList.push({ service: svc.nom, service_id: svc.id, type, statut: plan.planning.statut });
+                servicesAccessibles.add(svc.id);
+            } catch (e) { /* accès non autorisé pour ce service, normal selon le rôle */ }
+        }
     }
 
-    
+    document.getElementById('kpiServices').textContent = servicesAccessibles.size;
+    document.getElementById('labelServices').textContent = servicesAccessibles.size > 1 ? 'Mes services' : 'Mon service';
     document.getElementById('kpiHeures').textContent = totalHeures.toFixed(1) + ' h';
-    document.getElementById('kpiNuit').textContent   = totalNuit.toFixed(1)   + ' h';
+    const details = [];
+    if (totalNuit) details.push(`${totalNuit.toFixed(1)} h de nuit`);
+    if (totalPermanence) details.push(`${totalPermanence.toFixed(1)} h de permanence`);
+    document.getElementById('kpiHeuresDetail').textContent = details.length ? 'dont ' + details.join(' · ') : '';
 
-    // ── 4. RENDER PLANNINGS ──
+    if (aTraiter.length) {
+        document.getElementById('zoneATraiter').style.display = 'block';
+        document.getElementById('compteurATraiter').textContent = aTraiter.length;
+        document.getElementById('listeATraiter').innerHTML = aTraiter.slice(0, 6).map(a => `
+            <a class="carte-action" href="/decompte-detail.html?service_id=${a.service_id}&annee=${annee}&mois=${mois}&type=${a.type}">
+                <div>
+                    <div class="carte-action-titre">${a.service} — ${LIBELLES_TYPE[a.type]}</div>
+                    <div class="carte-action-sous">${a.agent} · ${a.total} h</div>
+                </div>
+                <span class="carte-action-fleche">Valider →</span>
+            </a>
+        `).join('');
+    }
+
     const corpsPlannings = document.getElementById('corpsPlannings');
-    if (!planningsList.length) {
-        corpsPlannings.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">Aucun planning pour le moment.</td></tr>';
-    } else {
-        corpsPlannings.innerHTML = planningsList.slice(0, 5).map(p => `
-            <tr>
-                <td>${p.service}</td>
-                <td>${p.mois}/${p.annee}</td>
-                <td><span class="badge">${p.statut}</span></td>
-                <td style="text-align:right;">
-                    <a class="btn-sm" href="planning-grille.html?service_id=${p.service_id}&annee=${p.annee}&mois=${p.mois}">Ouvrir</a>
-                </td>
-            </tr>
-        `).join('');
-    }
+    corpsPlannings.innerHTML = planningsList.length ? planningsList.slice(0, 6).map(p => `
+        <tr>
+            <td>${p.service}</td><td>${badgeType(p.type)}</td><td>${mois}/${annee}</td>
+            <td><span class="badge">${p.statut}</span></td>
+            <td style="text-align:right;"><a class="btn btn-sm btn-outline-bleu" href="planning-grille.html?service_id=${p.service_id}&annee=${annee}&mois=${mois}&type=${p.type}">Ouvrir</a></td>
+        </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Aucun planning ce mois-ci.</td></tr>';
 
-    // ── 5. RENDER DÉCOMPTES ──
     const corpsDecomptes = document.getElementById('corpsDecomptes');
-    if (!decomptesList.length) {
-        corpsDecomptes.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">Aucun décompte pour le moment.</td></tr>';
-    } else {
-        corpsDecomptes.innerHTML = decomptesList.slice(0, 5).map(d => `
-            <tr>
-                <td>${d.service}</td>
-                <td>${d.mois}/${d.annee}</td>
-                <td>${d.total} h</td>
-                <td><span class="badge">${d.statut}</span></td>
-            </tr>
-        `).join('');
-    }
+    corpsDecomptes.innerHTML = decomptesList.length ? decomptesList.slice(0, 6).map(d => `
+        <tr>
+            <td>${d.service}</td><td>${badgeType(d.type)}</td><td>${mois}/${annee}</td>
+            <td>${d.total} h</td><td><span class="badge">${d.statut}</span></td>
+        </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Aucun décompte calculé ce mois-ci.</td></tr>';
 })();
 </script>
 </body>
