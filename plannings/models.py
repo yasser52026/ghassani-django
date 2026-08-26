@@ -24,13 +24,7 @@ class Garde(models.Model):
 class AffectationGarde(models.Model):
     garde = models.ForeignKey(Garde, on_delete=models.CASCADE, related_name='affectations')
     agent = models.ForeignKey('comptes.Utilisateur', on_delete=models.CASCADE)
+    heures = models.FloatField(null=True, blank=True)  # saisie manuelle, utilisée pour la permanence
 
     class Meta:
         unique_together = ('garde', 'agent')
-
-
-class EtatRotation(models.Model):
-    """Mémorise où on en est dans le cycle de l'équipe pour un poste donné,
-    pour que le mois suivant reprenne la rotation là où elle s'est arrêtée."""
-    poste = models.OneToOneField('referentiels.Poste', on_delete=models.CASCADE, related_name='etat_rotation')
-    index_suivant = models.IntegerField(default=0)

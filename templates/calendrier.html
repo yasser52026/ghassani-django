@@ -17,7 +17,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
             <div class="card p-3">
                 <h5 class="mb-3">Jours fériés</h5>
-                <table id="tableJoursFeries"><tbody></tbody></table>
+                <table><thead><tr><th>Date</th><th>Libellé</th><th></th></tr></thead><tbody id="tableJoursFeries"></tbody></table>
                 <form id="formJourFerie" style="margin-top:1rem;display:grid;gap:0.5rem;">
                     <input type="date" id="dateJourFerie" class="form-control" required>
                     <input type="text" id="libelleJourFerie" class="form-control" placeholder="Libellé" required>
@@ -27,7 +27,7 @@
 
             <div class="card p-3">
                 <h5 class="mb-3">Périodes de Ramadan</h5>
-                <table id="tableRamadan"><tbody></tbody></table>
+                <table><thead><tr><th>Année</th><th>Période</th><th></th></tr></thead><tbody id="tableRamadan"></tbody></table>
                 <form id="formRamadan" style="margin-top:1rem;display:grid;gap:0.5rem;">
                     <input type="date" id="debutRamadan" class="form-control" required>
                     <input type="date" id="finRamadan" class="form-control" required>
@@ -36,9 +36,12 @@
             </div>
 
             <div class="card p-3">
-                <h5 class="mb-3">Barème des heures supp.</h5>
+                <h5 class="mb-3">Barème des heures de garde</h5>
+                <p style="color:var(--gris-texte);font-size:0.8rem;margin-top:-0.5rem;">
+                    Ne s'applique qu'à la garde — la permanence est comptée sur la base des heures saisies directement dans le planning.
+                </p>
                 <table>
-                    <thead><tr><th>Vacation</th><th>Catégorie</th><th>Heures</th><th>Depuis</th></tr></thead>
+                    <thead><tr><th>Vacation</th><th>Catégorie</th><th>Heures</th><th>Depuis</th><th></th></tr></thead>
                     <tbody id="tableBareme"></tbody>
                 </table>
                 <form id="formBareme" style="margin-top:1rem;display:grid;gap:0.5rem;">
@@ -64,20 +67,32 @@
 
     async function chargerTout() {
         const feries = await apiJSON('/calendrier/jours-feries/');
-        document.querySelector('#tableJoursFeries tbody').innerHTML = feries.map(j =>
-            `<tr><td>${j.date}</td><td>${j.libelle}</td></tr>`
-        ).join('') || '<tr><td colspan="2" style="color:var(--gris-texte);">Aucun jour férié saisi.</td></tr>';
+        document.getElementById('tableJoursFeries').innerHTML = feries.length ? feries.map(j => `
+            <tr>
+                <td>${j.date}</td><td>${j.libelle}</td>
+                <td><button class="btn btn-sm btn-outline-danger" onclick="supprimer('jours-feries', ${j.id})">×</button></td>
+            </tr>`).join('') : '<tr><td colspan="3" style="color:var(--gris-texte);">Aucun jour férié saisi.</td></tr>';
 
         const ramadan = await apiJSON('/calendrier/ramadan/');
-        document.querySelector('#tableRamadan tbody').innerHTML = ramadan.map(r =>
-            `<tr><td>${r.annee}</td><td>${r.date_debut} — ${r.date_fin}</td></tr>`
-        ).join('') || '<tr><td colspan="2" style="color:var(--gris-texte);">Aucune période saisie.</td></tr>';
+        document.getElementById('tableRamadan').innerHTML = ramadan.length ? ramadan.map(r => `
+            <tr>
+                <td>${r.annee}</td><td>${r.date_debut} — ${r.date_fin}</td>
+                <td><button class="btn btn-sm btn-outline-danger" onclick="supprimer('ramadan', ${r.id})">×</button></td>
+            </tr>`).join('') : '<tr><td colspan="3" style="color:var(--gris-texte);">Aucune période saisie.</td></tr>';
 
         const bareme = await apiJSON('/calendrier/baremes/');
-        document.getElementById('tableBareme').innerHTML = bareme.map(b =>
-            `<tr><td>${b.type_vacation === 'jour' ? 'Jour' : 'Nuit'}</td><td>${b.categorie_jour}</td><td>${b.heures} h</td><td>${b.date_effet}</td></tr>`
-        ).join('') || '<tr><td colspan="4" style="color:var(--gris-texte);">Aucun barème saisi.</td></tr>';
+        document.getElementById('tableBareme').innerHTML = bareme.length ? bareme.map(b => `
+            <tr>
+                <td>${b.type_vacation === 'jour' ? 'Jour' : 'Nuit'}</td><td>${b.categorie_jour}</td><td>${b.heures} h</td><td>${b.date_effet}</td>
+                <td><button class="btn btn-sm btn-outline-danger" onclick="supprimer('baremes', ${b.id})">×</button></td>
+            </tr>`).join('') : '<tr><td colspan="5" style="color:var(--gris-texte);">Aucun barème saisi.</td></tr>';
     }
+
+    window.supprimer = async (ressource, id) => {
+        if (!confirm("Supprimer cette ligne ?")) return;
+        await api(`/calendrier/${ressource}/${id}/`, { method: 'DELETE' });
+        chargerTout();
+    };
 
     document.getElementById('formJourFerie').addEventListener('submit', async (e) => {
         e.preventDefault();

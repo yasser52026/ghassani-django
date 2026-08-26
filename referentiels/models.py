@@ -2,7 +2,8 @@ from django.db import models
 
 TYPE_GARDE = "garde"
 TYPE_PERMANENCE = "permanence"
-TYPES_ACTIVITE = [(TYPE_GARDE, "Garde"), (TYPE_PERMANENCE, "Permanence")]
+TYPE_ASTREINTE = "astreinte"
+TYPES_ACTIVITE = [(TYPE_GARDE, "Garde"), (TYPE_PERMANENCE, "Permanence"), (TYPE_ASTREINTE, "Astreinte")]
 
 
 class Service(models.Model):
@@ -27,8 +28,7 @@ class Poste(models.Model):
 
 
 class Equipe(models.Model):
-    """Ordre de rotation d'une équipe, défini une fois par service et par type d'activité
-    (garde et permanence ont chacune leur propre équipe et leur propre ordre)."""
+    """Ordre de rotation d'une équipe, défini une fois par service et par type d'activité."""
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='equipe')
     type_activite = models.CharField(max_length=15, choices=TYPES_ACTIVITE, default=TYPE_GARDE)
     agent = models.ForeignKey('comptes.Utilisateur', on_delete=models.CASCADE)

@@ -5,37 +5,83 @@
     <meta charset="UTF-8">
     <title>Mon planning — CHR de Fès</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .calendrier-grille { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+        .calendrier-entete { text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--gris-texte); text-transform: uppercase; padding: 4px 0; }
+        .calendrier-jour { min-height: 92px; border: 1px solid var(--gris-bordure); border-radius: 8px; padding: 6px; background: white; }
+        .calendrier-jour.vide { background: transparent; border: none; }
+        .calendrier-jour.aujourdhui { border-color: var(--bleu-principal); border-width: 2px; }
+        .calendrier-numero { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+        .calendrier-badge { display: block; font-size: 0.68rem; font-weight: 600; padding: 2px 5px; border-radius: 5px; margin-bottom: 3px; }
+        .calendrier-badge-garde { background: var(--bleu-clair); color: var(--bleu-nuit); }
+        .calendrier-badge-permanence { background: #fbf3e4; color: #b8892f; }
+    </style>
 </head>
 <body>
 <div class="app-layout">
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2>Mon planning</h2><p>Vos prochaines gardes et permanences (60 prochains jours)</p></div>
+            <div><h2>Mon planning</h2><p id="sousTitreMois"></p></div>
+            <div class="page-header-actions">
+                <button class="btn btn-outline-light" onclick="changerMois(-1)">← Précédent</button>
+                <button class="btn btn-outline-light" onclick="changerMois(1)">Suivant →</button>
+            </div>
         </div>
         <div class="card p-3">
-            <table>
-                <thead><tr><th>Date</th><th>Jour</th><th>Service</th><th>Type</th><th>Poste</th><th>Horaires</th></tr></thead>
-                <tbody id="corpsPlanning"></tbody>
-            </table>
+            <div class="calendrier-grille" id="enteteCalendrier"></div>
+            <div class="calendrier-grille" id="corpsCalendrier" style="margin-top:6px;"></div>
         </div>
     </main>
 </div>
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
+const JOURS_ENTETE = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const aujourdhui = new Date();
+let annee = aujourdhui.getFullYear();
+let mois = aujourdhui.getMonth() + 1;
+
+function changerMois(delta) {
+    mois += delta;
+    if (mois > 12) { mois = 1; annee++; }
+    if (mois < 1) { mois = 12; annee--; }
+    chargerMonPlanning();
+}
+
 async function chargerMonPlanning() {
-    const gardes = await apiJSON('/plannings/mes-gardes/');
-    document.getElementById('corpsPlanning').innerHTML = gardes.length ? gardes.map(g => `
-        <tr>
-            <td>${g.date}</td>
-            <td>${g.jour_semaine}</td>
-            <td>${g.service}</td>
-            <td>${g.type_activite}</td>
-            <td>${g.type_vacation}</td>
-            <td>${g.heure_debut} — ${g.heure_fin}</td>
-        </tr>
-    `).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gris-texte);">Aucune garde ou permanence prévue.</td></tr>';
+    const data = await apiJSON(`/plannings/mes-gardes/?annee=${annee}&mois=${mois}`);
+    document.getElementById('sousTitreMois').textContent = `${data.mois_libelle} ${data.annee}`;
+
+    document.getElementById('enteteCalendrier').innerHTML = JOURS_ENTETE.map(j => `<div class="calendrier-entete">${j}</div>`).join('');
+
+    const parJour = {};
+    data.gardes.forEach(g => {
+        if (!parJour[g.jour_numero]) parJour[g.jour_numero] = [];
+        parJour[g.jour_numero].push(g);
+    });
+
+    const premierJour = new Date(annee, mois - 1, 1);
+    const decalage = (premierJour.getDay() + 6) % 7; // lundi = 0
+    const nbJours = new Date(annee, mois, 0).getDate();
+    const estMoisCourant = annee === aujourdhui.getFullYear() && mois === aujourdhui.getMonth() + 1;
+
+    let cellules = '';
+    for (let i = 0; i < decalage; i++) cellules += '<div class="calendrier-jour vide"></div>';
+    for (let jour = 1; jour <= nbJours; jour++) {
+        const gardesJour = parJour[jour] || [];
+        const estAujourdhui = estMoisCourant && jour === aujourdhui.getDate();
+        cellules += `
+            <div class="calendrier-jour${estAujourdhui ? ' aujourdhui' : ''}">
+                <div class="calendrier-numero">${jour}</div>
+                ${gardesJour.map(g => `
+                    <span class="calendrier-badge calendrier-badge-${g.type_activite_code}">
+                        ${g.type_activite} (${g.heure_debut}-${g.heure_fin})
+                    </span>
+                `).join('')}
+            </div>`;
+    }
+    document.getElementById('corpsCalendrier').innerHTML = cellules;
 }
 
 (async () => {

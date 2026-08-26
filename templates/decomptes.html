@@ -11,9 +11,9 @@
     <div id="sidebar-container"></div>
     <main class="contenu-principal">
         <div class="page-header">
-            <div><h2>États récapitulatifs</h2><p>Sélectionnez un service, un type d'activité et un mois pour consulter le décompte</p></div>
+            <div><h2>États récapitulatifs</h2><p>Sélectionnez un service, un type d'activité et une période à consulter</p></div>
         </div>
-        <div class="card p-4" style="max-width:480px;">
+        <div class="card p-4" style="max-width:500px;">
             <div class="mb-3">
                 <label class="form-label">Service</label>
                 <select id="serviceId" class="form-select"></select>
@@ -23,9 +23,17 @@
                 <div style="display:flex;gap:0.5rem;">
                     <button type="button" class="btn btn-outline-primary" id="btnGarde" style="flex:1;" onclick="choisirType('garde')">Garde</button>
                     <button type="button" class="btn btn-outline-primary" id="btnPermanence" style="flex:1;" onclick="choisirType('permanence')">Permanence</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnAstreinte" style="flex:1;" onclick="choisirType('astreinte')">Astreinte</button>
                 </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="mb-3" id="zonePeriode" style="display:none;">
+                <label class="form-label">Période</label>
+                <div style="display:flex;gap:0.5rem;">
+                    <button type="button" class="btn btn-outline-primary" id="btnMois" style="flex:1;" onclick="choisirPeriode('mois')">Mois</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnTrimestre" style="flex:1;" onclick="choisirPeriode('trimestre')">Trimestre</button>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;" id="zoneMois">
                 <div><label class="form-label">Mois</label>
                     <select id="mois" class="form-select">
                         <option value="1">1</option><option value="2">2</option><option value="3">3</option>
@@ -36,6 +44,17 @@
                 </div>
                 <div><label class="form-label">Année</label><input type="number" id="annee" class="form-control" value="2026"></div>
             </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;display:none;" id="zoneTrimestre">
+                <div><label class="form-label">Trimestre</label>
+                    <select id="trimestre" class="form-select">
+                        <option value="1">T1 (Jan-Fév-Mar)</option>
+                        <option value="2">T2 (Avr-Mai-Juin)</option>
+                        <option value="3">T3 (Juil-Août-Sep)</option>
+                        <option value="4">T4 (Oct-Nov-Déc)</option>
+                    </select>
+                </div>
+                <div><label class="form-label">Année</label><input type="number" id="anneeTrimestre" class="form-control" value="2026"></div>
+            </div>
             <button class="btn btn-primary" style="width:100%;margin-top:1rem;" onclick="voirDecompte()">Voir le décompte</button>
         </div>
     </main>
@@ -44,11 +63,23 @@
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
 let typeActivite = 'garde';
+let periode = 'mois';
 
 function choisirType(type) {
     typeActivite = type;
     document.getElementById('btnGarde').className = type === 'garde' ? 'btn btn-primary' : 'btn btn-outline-primary';
     document.getElementById('btnPermanence').className = type === 'permanence' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnAstreinte').className = type === 'astreinte' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('zonePeriode').style.display = type === 'astreinte' ? 'block' : 'none';
+    if (type !== 'astreinte') choisirPeriode('mois');
+}
+
+function choisirPeriode(p) {
+    periode = p;
+    document.getElementById('btnMois').className = p === 'mois' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnTrimestre').className = p === 'trimestre' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('zoneMois').style.display = p === 'mois' ? 'grid' : 'none';
+    document.getElementById('zoneTrimestre').style.display = p === 'trimestre' ? 'grid' : 'none';
 }
 
 (async () => {
@@ -62,9 +93,15 @@ function choisirType(type) {
 
 function voirDecompte() {
     const serviceId = document.getElementById('serviceId').value;
-    const mois = document.getElementById('mois').value;
-    const annee = document.getElementById('annee').value;
-    window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${typeActivite}`;
+    if (periode === 'trimestre') {
+        const trimestre = document.getElementById('trimestre').value;
+        const annee = document.getElementById('anneeTrimestre').value;
+        window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&type=${typeActivite}&periode=trimestre&trimestre=${trimestre}`;
+    } else {
+        const mois = document.getElementById('mois').value;
+        const annee = document.getElementById('annee').value;
+        window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${typeActivite}`;
+    }
 }
 </script>
 </body>

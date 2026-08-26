@@ -3,20 +3,20 @@ from rest_framework import viewsets
 from comptes.models import ROLE_ADMIN
 from comptes.permissions import role_requis
 from decomptes.models import journaliser
-from .models import Service, Poste, Equipe, TYPE_GARDE, TYPE_PERMANENCE
+from .models import Service, Poste, Equipe, TYPE_GARDE, TYPE_PERMANENCE, TYPE_ASTREINTE
 from .serializers import ServiceSerializer, PosteSerializer, EquipeSerializer
 
 POSTES_PAR_DEFAUT = [
     dict(type_activite=TYPE_GARDE, type_vacation='jour', heure_debut='16:30', heure_fin='20:30', effectif_attendu=1),
     dict(type_activite=TYPE_GARDE, type_vacation='nuit', heure_debut='20:30', heure_fin='08:30', effectif_attendu=1),
-    dict(type_activite=TYPE_PERMANENCE, type_vacation='jour', heure_debut='08:30', heure_fin='16:30', effectif_attendu=1),
     dict(type_activite=TYPE_PERMANENCE, type_vacation='nuit', heure_debut='20:30', heure_fin='08:30', effectif_attendu=1),
+    dict(type_activite=TYPE_ASTREINTE, type_vacation='jour', heure_debut='00:00', heure_fin='23:59', effectif_attendu=1),
 ]
 
 
 def creer_postes_par_defaut(service):
-    """Crée les 4 postes standards (garde jour/nuit, permanence jour/nuit) pour
-    un service, en sautant ceux qui existent déjà (même service+type_activite+type_vacation)."""
+    """Crée les postes standards (garde jour/nuit, permanence 20:30-08:30,
+    astreinte journée) pour un service, en sautant ceux qui existent déjà."""
     existants = set(
         Poste.objects.filter(service=service).values_list('type_activite', 'type_vacation')
     )
@@ -46,7 +46,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if nb_postes:
             journaliser(
                 self.request.user, "Postes par défaut créés", cible=f"Service:{service.id}",
-                details=f"{nb_postes} poste(s) standard (garde jour/nuit, permanence jour/nuit).",
+                details=f"{nb_postes} poste(s) standard (garde jour/nuit, permanence, astreinte).",
             )
 
     def perform_update(self, serializer):

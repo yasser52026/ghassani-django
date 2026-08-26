@@ -23,6 +23,7 @@
                 <div style="display:flex;gap:0.5rem;">
                     <button type="button" class="btn btn-outline-primary" id="btnGarde" style="flex:1;" onclick="choisirType('garde')">Garde</button>
                     <button type="button" class="btn btn-outline-primary" id="btnPermanence" style="flex:1;" onclick="choisirType('permanence')">Permanence</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnAstreinte" style="flex:1;" onclick="choisirType('astreinte')">Astreinte</button>
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
@@ -49,6 +50,7 @@ function choisirType(type) {
     typeActivite = type;
     document.getElementById('btnGarde').className = type === 'garde' ? 'btn btn-primary' : 'btn btn-outline-primary';
     document.getElementById('btnPermanence').className = type === 'permanence' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnAstreinte').className = type === 'astreinte' ? 'btn btn-primary' : 'btn btn-outline-primary';
 }
 
 (async () => {

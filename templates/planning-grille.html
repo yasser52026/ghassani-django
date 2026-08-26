@@ -17,28 +17,38 @@
                 <div style="margin-top:0.5rem;display:flex;gap:0.5rem;">
                     <button type="button" class="btn btn-sm btn-outline-light" id="ongletGarde" onclick="changerType('garde')">Garde</button>
                     <button type="button" class="btn btn-sm btn-outline-light" id="ongletPermanence" onclick="changerType('permanence')">Permanence</button>
+                    <button type="button" class="btn btn-sm btn-outline-light" id="ongletAstreinte" onclick="changerType('astreinte')">Astreinte</button>
                 </div>
             </div>
             <div class="page-header-actions">
-                <button class="btn btn-outline-light" onclick="genererRotation()">Générer la rotation</button>
                 <button class="btn btn-light" onclick="enregistrerGrille()">Enregistrer le planning</button>
                 <button class="btn btn-outline-light" onclick="calculerHeures()">Calculer les heures supp.</button>
-                <button class="btn btn-outline-light" onclick="window.print()">Imprimer</button>
+                <button class="btn btn-outline-light" onclick="telechargerWord()">Télécharger (Word)</button>
             </div>
         </div>
+
+        <div id="zoneHeuresDefaut" class="card p-2 mb-3" style="display:none;">
+            <div style="display:flex;gap:0.75rem;align-items:end;flex-wrap:wrap;">
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;margin-bottom:2px;">Heures par défaut ce mois-ci</label>
+                    <input type="number" id="heuresDefaut" class="form-control" min="0" step="0.5" style="width:110px;" value="8">
+                </div>
+                <button type="button" class="btn btn-sm btn-defaut" onclick="definirDefaut()">Réinitialiser les heures</button>
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="reinitialiserTout()">Vider toutes les affectations</button>
+                <span style="font-size:0.78rem;color:var(--gris-texte);max-width:420px;">
+                    « Réinitialiser les heures » met cette valeur partout : sur les agents déjà affectés (les étiquettes bleues) et sur la case « h » utilisée pour les prochains ajouts.
+                </span>
+            </div>
+        </div>
+
         <div id="zoneAlertes"></div>
         <div id="zonePlafond"></div>
         <datalist id="listeAgents"></datalist>
-        <div id="entetePourImpression" class="entete-impression">
-            <h2>Centre Hospitalier Régional de Fès — Hôpital Al Ghassani</h2>
-            <h3 id="titreImpression"></h3>
-        </div>
         <div class="card p-3">
             <div style="overflow-x:auto;">
                 <table id="tableGrille" style="font-size:0.85rem;">
                     <thead></thead>
                     <tbody></tbody>
-                    <tfoot id="piedImpression"></tfoot>
                 </table>
             </div>
         </div>
@@ -46,14 +56,36 @@
 </div>
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
+<style>
+    .btn-defaut {
+        background: #60a5fa;
+        color: #fff;
+        border: none;
+    }
+    .btn-defaut:hover {
+        background: #3b82f6;
+    }
+    .ajouter-perm {
+        background: #60a5fa !important;
+        color: #fff !important;
+        border: none;
+    }
+    .ajouter-perm:hover {
+        background: #3b82f6 !important;
+    }
+</style>
 <script>
 const params = new URLSearchParams(window.location.search);
 const serviceId = params.get('service_id');
 const annee = params.get('annee');
 const mois = params.get('mois');
-let typeActivite = params.get('type') === 'permanence' ? 'permanence' : 'garde';
+const TYPES_VALIDES = ['garde', 'permanence', 'astreinte'];
+let typeActivite = TYPES_VALIDES.includes(params.get('type')) ? params.get('type') : 'garde';
 let planningId = null;
 let agentsMap = {};
+let heuresParDefaut = null;
+
+const LIBELLES = { garde: 'Garde', permanence: 'Permanence', astreinte: 'Astreinte' };
 
 function changerType(type) {
     window.location.href = `/planning-grille.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${type}`;
@@ -62,13 +94,15 @@ function changerType(type) {
 function majOnglets() {
     document.getElementById('ongletGarde').className = typeActivite === 'garde' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
     document.getElementById('ongletPermanence').className = typeActivite === 'permanence' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
+    document.getElementById('ongletAstreinte').className = typeActivite === 'astreinte' ? 'btn btn-sm btn-light' : 'btn btn-sm btn-outline-light';
+    document.getElementById('zoneHeuresDefaut').style.display = typeActivite === 'permanence' ? 'block' : 'none';
 }
 
 function attacherSuppression(chip) {
     chip.querySelector('.chip-remove').addEventListener('click', () => chip.remove());
 }
 
-function cellule(garde) {
+function celluleGarde(garde) {
     const chips = garde.affectations.map(a => `
         <span class="chip" data-agent-id="${a.agent_id}">
             ${a.agent_nom}
@@ -83,29 +117,104 @@ function cellule(garde) {
     `;
 }
 
+function cellulePermanence(garde) {
+    const chips = garde.affectations.map(a => `
+        <span class="chip" data-agent-id="${a.agent_id}" data-heures="${a.heures || 0}">
+            ${a.agent_nom} (${a.heures || 0}h)
+            <button type="button" class="chip-remove">&times;</button>
+        </span>
+    `).join('');
+    const valeurDefaut = heuresParDefaut !== null ? heuresParDefaut : '';
+    return `
+        <div class="cellule-permanence" data-garde-id="${garde.id}">
+            <div class="chips-container">${chips}</div>
+            <div style="display:flex;gap:3px;margin-top:3px;">
+                <input type="text" class="form-control agent-input-perm" list="listeAgents" placeholder="agent" autocomplete="off" style="font-size:0.72rem;padding:2px 4px;flex:1;min-width:0;">
+                <input type="number" class="form-control heures-input-perm" placeholder="h" min="0" step="0.5" value="${valeurDefaut}" style="font-size:0.72rem;padding:2px 4px;width:44px;">
+                <button type="button" class="btn btn-sm ajouter-perm" style="font-size:0.7rem;padding:2px 8px;border-radius:3px;cursor:pointer;">+</button>
+            </div>
+        </div>
+    `;
+}
+
+function cellule(garde) {
+    return typeActivite === 'permanence' ? cellulePermanence(garde) : celluleGarde(garde);
+}
+
+function definirDefaut() {
+    const valeur = parseFloat(document.getElementById('heuresDefaut').value);
+    if (!valeur || valeur <= 0) { alert("Indiquez un nombre d'heures valide."); return; }
+    heuresParDefaut = valeur;
+
+    document.querySelectorAll('.cellule-permanence .chip').forEach(chip => {
+        const nom = chip.childNodes[0].textContent.trim().replace(/\s*\(.*\)$/, '');
+        chip.dataset.heures = valeur;
+        chip.innerHTML = `${nom} (${valeur}h) <button type="button" class="chip-remove">&times;</button>`;
+        attacherSuppression(chip);
+    });
+    document.querySelectorAll('.heures-input-perm').forEach(input => { input.value = valeur; });
+}
+
+function reinitialiserTout() {
+    if (!confirm('Voulez-vous vraiment vider toutes les affectations ?')) return;
+    document.querySelectorAll('.chips-container').forEach(c => c.innerHTML = '');
+    heuresParDefaut = null;
+    document.getElementById('heuresDefaut').value = 8;
+    document.querySelectorAll('.heures-input-perm').forEach(input => { input.value = ''; });
+}
+
 function activerCellules() {
     document.querySelectorAll('.chip').forEach(attacherSuppression);
-    document.querySelectorAll('.cellule-agents').forEach((cel) => {
-        const input = cel.querySelector('.agent-input');
-        const chipsContainer = cel.querySelector('.chips-container');
 
-        function ajouter(nom, agentId) {
-            if (cel.querySelector(`[data-agent-id="${agentId}"]`)) return;
-            const chip = document.createElement('span');
-            chip.className = 'chip';
-            chip.dataset.agentId = agentId;
-            chip.innerHTML = `${nom} <button type="button" class="chip-remove">&times;</button>`;
-            attacherSuppression(chip);
-            chipsContainer.appendChild(chip);
-        }
+    if (typeActivite === 'permanence') {
+        document.querySelectorAll('.cellule-permanence').forEach((cel) => {
+            const inputNom = cel.querySelector('.agent-input-perm');
+            const inputHeures = cel.querySelector('.heures-input-perm');
+            const bouton = cel.querySelector('.ajouter-perm');
+            const chipsContainer = cel.querySelector('.chips-container');
 
-        function tenter() {
-            const val = input.value.trim();
-            if (agentsMap[val]) { ajouter(val, agentsMap[val]); input.value = ''; }
-        }
-        input.addEventListener('input', tenter);
-        input.addEventListener('change', tenter);
-    });
+            bouton.addEventListener('click', () => {
+                const nom = inputNom.value.trim();
+                const heures = parseFloat(inputHeures.value);
+                const agentId = agentsMap[nom];
+                if (!agentId) { alert("Sélectionnez un agent existant dans la liste."); return; }
+                if (!heures || heures <= 0) { alert("Indiquez un nombre d'heures valide."); return; }
+                if (cel.querySelector(`[data-agent-id="${agentId}"]`)) { alert("Cet agent est déjà affecté ce jour-là."); return; }
+
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                chip.dataset.agentId = agentId;
+                chip.dataset.heures = heures;
+                chip.innerHTML = `${nom} (${heures}h) <button type="button" class="chip-remove">&times;</button>`;
+                attacherSuppression(chip);
+                chipsContainer.appendChild(chip);
+                inputNom.value = '';
+                inputHeures.value = heuresParDefaut !== null ? heuresParDefaut : '';
+            });
+        });
+    } else {
+        document.querySelectorAll('.cellule-agents').forEach((cel) => {
+            const input = cel.querySelector('.agent-input');
+            const chipsContainer = cel.querySelector('.chips-container');
+
+            function ajouter(nom, agentId) {
+                if (cel.querySelector(`[data-agent-id="${agentId}"]`)) return;
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                chip.dataset.agentId = agentId;
+                chip.innerHTML = `${nom} <button type="button" class="chip-remove">&times;</button>`;
+                attacherSuppression(chip);
+                chipsContainer.appendChild(chip);
+            }
+
+            function tenter() {
+                const val = input.value.trim();
+                if (agentsMap[val]) { ajouter(val, agentsMap[val]); input.value = ''; }
+            }
+            input.addEventListener('input', tenter);
+            input.addEventListener('change', tenter);
+        });
+    }
 }
 
 async function chargerGrille() {
@@ -114,10 +223,9 @@ async function chargerGrille() {
     planningId = data.planning.id;
 
     const service = await apiJSON(`/services/${serviceId}/`);
-    const libelleType = typeActivite === 'permanence' ? 'Permanence' : 'Garde';
+    const libelleType = LIBELLES[typeActivite];
     document.getElementById('titreService').textContent = service.nom;
     document.getElementById('sousTitre').textContent = `${libelleType} — ${data.planning.mois_libelle || mois}/${annee} — statut : ${data.planning.statut}`;
-    document.getElementById('titreImpression').textContent = `Planning de ${libelleType.toLowerCase()} — ${service.nom} — ${data.planning.mois_libelle || mois}/${annee}`;
     document.title = `Planning ${libelleType} - ${service.nom} - ${data.planning.mois_libelle || mois}-${annee}`;
 
     agentsMap = {};
@@ -135,17 +243,25 @@ async function chargerGrille() {
             .map(([agentId, heures]) => ({ agentId, heures, nom: (data.agents_du_service.find(a => a.id == agentId) || {}).nom_complet || agentId }))
             .filter(l => l.heures > 0)
             .sort((a, b) => b.heures - a.heures);
-        if (lignes.length) {
-            document.getElementById('zonePlafond').innerHTML = `
+        document.getElementById('zonePlafond').innerHTML = lignes.length ? `
                 <div class="alert alert-info" style="font-size:0.85rem;">
-                    <strong>Heures de permanence affectées ce mois (plafond ${data.plafond_permanence} h) :</strong>
+                    <strong>Heures de permanence saisies ce mois (plafond de comptage : ${data.plafond_permanence} h) :</strong>
                     <ul style="margin:4px 0 0;columns:2;">
-                        ${lignes.map(l => `<li style="${l.heures >= data.plafond_permanence ? 'color:#b00020;font-weight:600;' : ''}">${l.nom} — ${l.heures} h</li>`).join('')}
+                        ${lignes.map(l => `<li style="${l.heures > data.plafond_permanence ? 'color:#b00020;font-weight:600;' : ''}">${l.nom} — ${l.heures} h${l.heures > data.plafond_permanence ? ' (dépassement)' : ''}</li>`).join('')}
                     </ul>
-                </div>`;
-        } else {
-            document.getElementById('zonePlafond').innerHTML = '';
-        }
+                </div>` : '';
+    } else if (data.plafond_astreinte) {
+        const lignes = Object.entries(data.unites_astreinte_par_agent || {})
+            .map(([agentId, unites]) => ({ agentId, unites, nom: (data.agents_du_service.find(a => a.id == agentId) || {}).nom_complet || agentId }))
+            .filter(l => l.unites > 0)
+            .sort((a, b) => b.unites - a.unites);
+        document.getElementById('zonePlafond').innerHTML = lignes.length ? `
+                <div class="alert alert-info" style="font-size:0.85rem;">
+                    <strong>Unités d'astreinte ce mois (plafond de comptage : ${data.plafond_astreinte} unités) :</strong>
+                    <ul style="margin:4px 0 0;columns:2;">
+                        ${lignes.map(l => `<li style="${l.unites > data.plafond_astreinte ? 'color:#b00020;font-weight:600;' : ''}">${l.nom} — ${l.unites} unités${l.unites > data.plafond_astreinte ? ' (dépassement)' : ''}</li>`).join('')}
+                    </ul>
+                </div>` : '';
     } else {
         document.getElementById('zonePlafond').innerHTML = '';
     }
@@ -154,19 +270,12 @@ async function chargerGrille() {
     data.gardes.forEach(g => gardesParCle[`${g.jour}-${g.poste_id}`] = g);
 
     const thead = document.querySelector('#tableGrille thead');
-    thead.innerHTML = `<tr><th style="width:70px;">Jour</th>${data.postes.map(p =>
-        `<th>${libelleType} de ${p.type_vacation === 'jour' ? 'jour' : 'nuit'}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small></th>`
-    ).join('')}</tr>`;
-
-    document.getElementById('piedImpression').innerHTML = `
-        <tr><td colspan="${data.postes.length + 1}">
-            <div class="zone-visas">
-                <div><span>Visa Chef de service</span></div>
-                <div><span>Visa Directeur</span></div>
-                <div><span>Cachet de l'administration</span></div>
-            </div>
-        </td></tr>
-    `;
+    thead.innerHTML = `<tr><th style="width:70px;">Jour</th>${data.postes.map(p => {
+        const libelle = typeActivite === 'garde'
+            ? `${libelleType} de ${p.type_vacation === 'jour' ? 'jour' : 'nuit'}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small>`
+            : `${libelleType}<br><small style="color:var(--gris-texte);">${p.heure_debut.slice(0,5)}–${p.heure_fin.slice(0,5)}</small>`;
+        return `<th>${libelle}</th>`;
+    }).join('')}</tr>`;
 
     const tbody = document.querySelector('#tableGrille tbody');
     tbody.innerHTML = data.jours.map(j => `
@@ -174,7 +283,7 @@ async function chargerGrille() {
             <td><strong>${j.numero}</strong> ${j.nom_jour}</td>
             ${data.postes.map(p => {
                 const garde = gardesParCle[`${j.numero}-${p.id}`];
-                return `<td style="min-width:180px;">${garde ? cellule(garde) : ''}</td>`;
+                return `<td style="min-width:200px;">${garde ? cellule(garde) : ''}</td>`;
             }).join('')}
         </tr>
     `).join('');
@@ -183,21 +292,35 @@ async function chargerGrille() {
         document.getElementById('zoneAlertes').innerHTML += `
             <div class="alert alert-warning">Aucun poste de type « ${libelleType.toLowerCase()} » n'est configuré pour ce service. Ajoutez-en depuis la fiche du service.</div>`;
     }
+    if (typeActivite === 'astreinte' && !data.agents_du_service.length) {
+        document.getElementById('zoneAlertes').innerHTML += `
+            <div class="alert alert-warning">Aucun médecin n'est rattaché à ce service. L'astreinte n'est ouverte qu'aux agents dont la fonction est « Médecin ».</div>`;
+    }
 
     activerCellules();
 }
 
 async function enregistrerGrille() {
     const gardesData = [];
-    document.querySelectorAll('.cellule-agents').forEach((cel) => {
-        const agentIds = Array.from(cel.querySelectorAll('.chip')).map(c => parseInt(c.dataset.agentId));
-        gardesData.push({ garde_id: parseInt(cel.dataset.gardeId), agent_ids: agentIds });
-    });
+    if (typeActivite === 'permanence') {
+        document.querySelectorAll('.cellule-permanence').forEach((cel) => {
+            const affectations = Array.from(cel.querySelectorAll('.chip')).map(c => ({
+                agent_id: parseInt(c.dataset.agentId),
+                heures: parseFloat(c.dataset.heures),
+            }));
+            gardesData.push({ garde_id: parseInt(cel.dataset.gardeId), affectations });
+        });
+    } else {
+        document.querySelectorAll('.cellule-agents').forEach((cel) => {
+            const agentIds = Array.from(cel.querySelectorAll('.chip')).map(c => parseInt(c.dataset.agentId));
+            gardesData.push({ garde_id: parseInt(cel.dataset.gardeId), agent_ids: agentIds });
+        });
+    }
     const resultat = await apiJSON(`/plannings/${planningId}/enregistrer/`, {
         method: 'POST',
         body: JSON.stringify({ gardes: gardesData }),
     });
-    if (resultat && resultat.agents_bloques && resultat.agents_bloques.length) {
+    if (resultat && resultat.depassements && resultat.depassements.length) {
         alert(resultat.detail);
     }
     chargerGrille();
@@ -208,17 +331,22 @@ async function calculerHeures() {
     window.location.href = `/decompte-detail.html?service_id=${serviceId}&annee=${annee}&mois=${mois}&type=${typeActivite}`;
 }
 
+async function telechargerWord() {
+    const reponse = await api(`/plannings/${planningId}/export-word/`);
+    const blob = await reponse.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `planning_${typeActivite}_${serviceId}_${annee}_${mois}.docx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
 (async () => {
     const utilisateur = await chargerLayout('plannings');
     if (!utilisateur) return;
     chargerGrille();
 })();
-
-async function genererRotation() {
-    const resultat = await apiJSON(`/plannings/${planningId}/generer-rotation/`, { method: 'POST' });
-    if (resultat.message) alert(resultat.message);
-    chargerGrille();
-}
 </script>
 </body>
 </html>

@@ -5,6 +5,25 @@
     <meta charset="UTF-8">
     <title>Détail service — CHR de Fès</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gris-bordure);
+            border-radius: 6px;
+            max-height: 190px;
+            overflow-y: auto;
+            z-index: 20;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+            display: none;
+        }
+        .suggestion-item { padding: 6px 10px; cursor: pointer; font-size: 0.85rem; }
+        .suggestion-item:hover { background: var(--bleu-clair); }
+        .suggestion-vide { padding: 6px 10px; font-size: 0.8rem; color: var(--gris-texte); }
+    </style>
 </head>
 <body>
 <div class="app-layout">
@@ -17,7 +36,11 @@
         <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
             <button type="button" class="btn btn-outline-primary" id="btnGarde" onclick="choisirType('garde')">Garde</button>
             <button type="button" class="btn btn-outline-primary" id="btnPermanence" onclick="choisirType('permanence')">Permanence</button>
+            <button type="button" class="btn btn-outline-primary" id="btnAstreinte" onclick="choisirType('astreinte')">Astreinte</button>
         </div>
+        <p id="noteAstreinte" style="display:none;color:var(--gris-texte);font-size:0.85rem;margin-top:-0.5rem;">
+            L'astreinte n'est ouverte qu'aux agents dont la fonction est « Médecin ».
+        </p>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
             <div class="card p-3">
@@ -43,7 +66,8 @@
             <div class="card p-3">
                 <h5 class="mb-3">Équipe — ordre de rotation</h5>
                 <p style="color:var(--gris-texte);font-size:0.85rem;margin-top:-0.5rem;">
-                    Utilisée par « Générer la rotation » pour ce type d'activité. Tapez un nom pour ajouter n'importe quel agent actif ; chaque agent n'apparaît qu'une fois dans cette équipe.
+                    Un agent ne peut appartenir qu'à une seule équipe à la fois, tous services et
+                    toutes activités confondus (garde, permanence, astreinte).
                 </p>
                 <table>
                     <thead><tr><th>Ordre</th><th>Agent</th><th></th></tr></thead>
@@ -51,10 +75,10 @@
                 </table>
 
                 <form id="formEquipe" style="display:grid;grid-template-columns:2fr 1fr auto;gap:0.5rem;margin-top:1rem;align-items:end;">
-                    <div>
+                    <div style="position:relative;">
                         <label class="form-label">Agent</label>
-                        <input type="text" id="agentEquipeInput" class="form-control" list="listeAgentsEquipe" placeholder="Nom de l'agent..." autocomplete="off" required>
-                        <datalist id="listeAgentsEquipe"></datalist>
+                        <input type="text" id="agentEquipeInput" class="form-control" placeholder="Cliquez pour voir les agents disponibles..." autocomplete="off" required>
+                        <div class="suggestions-dropdown" id="suggestionsEquipe"></div>
                     </div>
                     <div><label class="form-label">Ordre</label><input type="number" id="ordreEquipe" class="form-control" value="1" min="1" required></div>
                     <div><button class="btn btn-primary btn-sm" type="submit">Ajouter</button></div>
@@ -64,22 +88,31 @@
         </div>
     </main>
 </div>
-<script src="{% static 'js/api.js' %}?v=3"></script>
-<script src="{% static 'js/layout.js' %}?v=3"></script>
+<script src="{% static 'js/api.js' %}?v=6"></script>
+<script src="{% static 'js/layout.js' %}?v=6"></script>
 <script>
 const params = new URLSearchParams(window.location.search);
 const serviceId = params.get('id');
 let typeActivite = 'garde';
 let serviceCourant = null;
 let tousLesAgentsActifs = [];
+let toutesLesEquipes = [];
 let agentsMapEquipe = {};
 
 function choisirType(type) {
     typeActivite = type;
     document.getElementById('btnGarde').className = type === 'garde' ? 'btn btn-primary' : 'btn btn-outline-primary';
     document.getElementById('btnPermanence').className = type === 'permanence' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('btnAstreinte').className = type === 'astreinte' ? 'btn btn-primary' : 'btn btn-outline-primary';
+    document.getElementById('noteAstreinte').style.display = type === 'astreinte' ? 'block' : 'none';
     afficherPostes();
     afficherEquipe();
+}
+
+function agentsEligibles() {
+    return typeActivite === 'astreinte'
+        ? tousLesAgentsActifs.filter(a => a.fonction === 'medecin')
+        : tousLesAgentsActifs;
 }
 
 function afficherPostes() {
@@ -104,14 +137,46 @@ function afficherEquipe() {
         </tr>
     `).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--gris-texte);">Aucune équipe définie.</td></tr>';
 
-    const dejaDansEquipe = new Set(equipe.map(e => e.agent));
-    const disponibles = tousLesAgentsActifs.filter(a => !dejaDansEquipe.has(a.id));
+    const dejaDansEquipeIci = new Set(equipe.map(e => e.agent));
+    const dejaDansUneAutreEquipe = new Set(
+        toutesLesEquipes
+            .filter(e => !(String(e.service) === String(serviceId) && e.type_activite === typeActivite))
+            .map(e => e.agent)
+    );
+
+    const disponibles = agentsEligibles().filter(a => !dejaDansEquipeIci.has(a.id) && !dejaDansUneAutreEquipe.has(a.id));
     agentsMapEquipe = {};
     disponibles.forEach(a => agentsMapEquipe[a.nom_complet] = a.id);
-    document.getElementById('listeAgentsEquipe').innerHTML = disponibles.map(a => `<option value="${a.nom_complet}">`).join('');
     document.getElementById('agentEquipeInput').value = '';
     document.getElementById('ordreEquipe').value = equipe.length + 1;
 }
+
+function afficherSuggestions(filtre) {
+    const zone = document.getElementById('suggestionsEquipe');
+    const noms = Object.keys(agentsMapEquipe).filter(nom => nom.toLowerCase().includes(filtre.toLowerCase()));
+
+    if (!noms.length) {
+        zone.innerHTML = '<div class="suggestion-vide">Aucun agent disponible.</div>';
+        zone.style.display = 'block';
+        return;
+    }
+
+    zone.innerHTML = noms.map(nom => `<div class="suggestion-item" data-nom="${nom}">${nom}</div>`).join('');
+    zone.style.display = 'block';
+    zone.querySelectorAll('.suggestion-item').forEach(item => {
+        item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            document.getElementById('agentEquipeInput').value = item.dataset.nom;
+            zone.style.display = 'none';
+        });
+    });
+}
+
+document.getElementById('agentEquipeInput').addEventListener('focus', (e) => afficherSuggestions(e.target.value));
+document.getElementById('agentEquipeInput').addEventListener('input', (e) => afficherSuggestions(e.target.value));
+document.getElementById('agentEquipeInput').addEventListener('blur', () => {
+    setTimeout(() => { document.getElementById('suggestionsEquipe').style.display = 'none'; }, 150);
+});
 
 async function chargerService() {
     serviceCourant = await apiJSON(`/services/${serviceId}/`);
@@ -120,7 +185,10 @@ async function chargerService() {
 
     const tousAgents = await apiJSON('/comptes/agents/');
     const listeAgents = Array.isArray(tousAgents) ? tousAgents : (tousAgents.results || []);
-    tousLesAgentsActifs = listeAgents.filter(a => a.statut === 'actif');
+    tousLesAgentsActifs = listeAgents.filter(a => a.service == serviceId && a.statut === 'actif');
+
+    const equipesTotales = await apiJSON('/equipe/');
+    toutesLesEquipes = Array.isArray(equipesTotales) ? equipesTotales : (equipesTotales.results || []);
 
     choisirType(typeActivite);
 }

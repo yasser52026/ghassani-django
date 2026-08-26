@@ -14,18 +14,34 @@
             <div><h2>Journal d'audit</h2><p>Traçabilité des saisies et modifications (qui, quoi, quand)</p></div>
         </div>
         <div class="card p-3">
+            <div style="display:flex;gap:1rem;align-items:end;margin-bottom:1rem;flex-wrap:wrap;">
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;">Rechercher</label>
+                    <input type="text" id="rechercheJournal" class="form-control" placeholder="Utilisateur, action, cible, détails..." style="width:320px;">
+                </div>
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;">Date</label>
+                    <input type="date" id="dateJournal" class="form-control">
+                </div>
+                <button class="btn btn-outline-light" style="color:var(--bleu-principal);border-color:var(--bleu-principal);" onclick="reinitialiserFiltres()">Réinitialiser</button>
+            </div>
+
             <table>
                 <thead><tr><th>Date / heure</th><th>Utilisateur</th><th>Action</th><th>Cible</th><th>Détails</th></tr></thead>
                 <tbody id="corpsJournal"></tbody>
             </table>
+
+            <div id="zonePagination" style="display:flex;justify-content:center;align-items:center;gap:0.4rem;margin-top:1.25rem;flex-wrap:wrap;"></div>
         </div>
     </main>
 </div>
 <script src="{% static 'js/api.js' %}"></script>
 <script src="{% static 'js/layout.js' %}"></script>
 <script>
-async function chargerJournal() {
-    const entrees = await apiJSON('/decomptes/journal-audit/');
+let pageCourante = 1;
+let minuterieRecherche = null;
+
+function rendreJournal(entrees) {
     document.getElementById('corpsJournal').innerHTML = entrees.length ? entrees.map(e => `
         <tr>
             <td>${new Date(e.horodatage).toLocaleString('fr-FR')}</td>
@@ -34,8 +50,64 @@ async function chargerJournal() {
             <td>${e.cible || '—'}</td>
             <td>${e.details || '—'}</td>
         </tr>
-    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Aucune entrée pour le moment.</td></tr>';
+    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--gris-texte);">Aucune entrée ne correspond aux filtres.</td></tr>';
 }
+
+function rendrePagination(page, numPages, total) {
+    const zone = document.getElementById('zonePagination');
+    if (numPages <= 1) {
+        zone.innerHTML = total ? `<span style="color:var(--gris-texte);font-size:0.85rem;">${total} entrée(s)</span>` : '';
+        return;
+    }
+
+    let boutons = `<button class="btn btn-sm btn-outline-light" style="color:var(--bleu-principal);border-color:var(--bleu-principal);" ${page <= 1 ? 'disabled' : ''} onclick="allerPage(${page - 1})">← Précédent</button>`;
+
+    const debut = Math.max(1, page - 2);
+    const fin = Math.min(numPages, page + 2);
+    if (debut > 1) boutons += `<button class="btn btn-sm btn-outline-light" onclick="allerPage(1)">1</button>${debut > 2 ? '<span>…</span>' : ''}`;
+    for (let p = debut; p <= fin; p++) {
+        boutons += `<button class="btn btn-sm ${p === page ? 'btn-primary' : 'btn-outline-light'}" onclick="allerPage(${p})">${p}</button>`;
+    }
+    if (fin < numPages) boutons += `${fin < numPages - 1 ? '<span>…</span>' : ''}<button class="btn btn-sm btn-outline-light" onclick="allerPage(${numPages})">${numPages}</button>`;
+
+    boutons += `<button class="btn btn-sm btn-outline-light" style="color:var(--bleu-principal);border-color:var(--bleu-principal);" ${page >= numPages ? 'disabled' : ''} onclick="allerPage(${page + 1})">Suivant →</button>`;
+    boutons += `<span style="color:var(--gris-texte);font-size:0.85rem;margin-left:0.75rem;">${total} entrée(s) — page ${page}/${numPages}</span>`;
+    zone.innerHTML = boutons;
+}
+
+function allerPage(page) {
+    pageCourante = page;
+    chargerJournal();
+}
+
+async function chargerJournal() {
+    const q = document.getElementById('rechercheJournal').value.trim();
+    const date = document.getElementById('dateJournal').value;
+    const params = new URLSearchParams({ page: pageCourante });
+    if (q) params.set('q', q);
+    if (date) params.set('date', date);
+
+    const data = await apiJSON(`/decomptes/journal-audit/?${params.toString()}`);
+    rendreJournal(data.results);
+    rendrePagination(data.page, data.num_pages, data.count);
+}
+
+function reinitialiserFiltres() {
+    document.getElementById('rechercheJournal').value = '';
+    document.getElementById('dateJournal').value = '';
+    pageCourante = 1;
+    chargerJournal();
+}
+
+document.getElementById('rechercheJournal').addEventListener('input', () => {
+    clearTimeout(minuterieRecherche);
+    minuterieRecherche = setTimeout(() => { pageCourante = 1; chargerJournal(); }, 300);
+});
+
+document.getElementById('dateJournal').addEventListener('change', () => {
+    pageCourante = 1;
+    chargerJournal();
+});
 
 (async () => {
     const utilisateur = await chargerLayout('journal-audit');

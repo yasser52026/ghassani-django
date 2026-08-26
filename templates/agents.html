@@ -48,6 +48,7 @@
         </div>
 
         <div class="card p-3">
+            <input type="text" id="rechercheAgents" class="form-control mb-3" placeholder="Rechercher un agent (nom, matricule, email)..." style="max-width:400px;">
             <table>
                 <thead><tr><th>Matricule</th><th>Nom et prénom</th><th>Email</th><th>Rôle</th><th>Service</th><th>Disponibilité</th><th></th></tr></thead>
                 <tbody id="corpsAgents"></tbody>
@@ -60,6 +61,8 @@
 <script>
 
 let services = [];
+let derniereListeAgents = [];
+let peutSupprimer = false;
 
 function ouvrirFormulaire(agent) {
     document.getElementById('formulaireAgent').style.display = 'block';
@@ -86,11 +89,8 @@ function fermerFormulaire() {
     document.getElementById('formAgent').reset();
 }
 
-let peutSupprimer = false;
-
-async function chargerAgents() {
-    const agents = await apiJSON('/comptes/agents/');
-    document.getElementById('corpsAgents').innerHTML = agents.map(a => {
+function rendreAgents(agents) {
+    document.getElementById('corpsAgents').innerHTML = agents.length ? agents.map(a => {
         const service = services.find(s => s.id === a.service);
         return `
         <tr>
@@ -102,8 +102,23 @@ async function chargerAgents() {
                 ${peutSupprimer ? `<button class="btn btn-sm btn-danger" onclick="supprimerAgent(${a.id}, '${a.nom_complet.replace(/'/g, "\\'")}')">Supprimer</button>` : ''}
             </td>
         </tr>`;
-    }).join('');
+    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--gris-texte);">Aucun agent ne correspond à la recherche.</td></tr>';
 }
+
+async function chargerAgents() {
+    derniereListeAgents = await apiJSON('/comptes/agents/');
+    rendreAgents(derniereListeAgents);
+}
+
+document.getElementById('rechercheAgents').addEventListener('input', (e) => {
+    const terme = e.target.value.trim().toLowerCase();
+    const filtres = derniereListeAgents.filter(a =>
+        a.nom_complet.toLowerCase().includes(terme) ||
+        a.matricule.toLowerCase().includes(terme) ||
+        a.email.toLowerCase().includes(terme)
+    );
+    rendreAgents(filtres);
+});
 
 async function supprimerAgent(id, nomComplet) {
     if (!confirm(`Supprimer le compte de ${nomComplet} ? Cette action est irréversible.`)) return;
