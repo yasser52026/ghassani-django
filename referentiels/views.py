@@ -1,4 +1,5 @@
 from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 
 from comptes.models import ROLE_ADMIN
 from comptes.permissions import role_requis
@@ -37,7 +38,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [role_requis(ROLE_ADMIN)()]
-        return []
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         service = serializer.save()
@@ -65,7 +66,7 @@ class PosteViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [role_requis(ROLE_ADMIN)()]
-        return []
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         poste = serializer.save()
@@ -87,7 +88,7 @@ class EquipeViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [role_requis(ROLE_ADMIN)()]
-        return []
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         equipe = serializer.save()

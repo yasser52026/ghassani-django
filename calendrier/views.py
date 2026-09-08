@@ -1,4 +1,5 @@
 from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 
 from comptes.models import ROLE_ADMIN
 from comptes.permissions import role_requis
@@ -13,7 +14,7 @@ class JourFerieViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [role_requis(ROLE_ADMIN)()]
-        return []
+        return [IsAuthenticated()]
 
 
 class PeriodeRamadanViewSet(viewsets.ModelViewSet):
@@ -23,7 +24,7 @@ class PeriodeRamadanViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [role_requis(ROLE_ADMIN)()]
-        return []
+        return [IsAuthenticated()]
 
 
 class BaremeViewSet(viewsets.ModelViewSet):
@@ -33,4 +34,4 @@ class BaremeViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [role_requis(ROLE_ADMIN)()]
-        return []
+        return [IsAuthenticated()]
